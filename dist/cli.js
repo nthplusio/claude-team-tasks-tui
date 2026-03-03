@@ -2,6 +2,7 @@
 // @bun
 // index.tsx
 import { createComponent as _$createComponent4 } from "@opentui/solid";
+import { resolve } from "path";
 import { render } from "@opentui/solid";
 
 // src/App.tsx
@@ -725,7 +726,7 @@ function App(props) {
 }
 
 // index.tsx
-var watchPath = process.argv[2] || "./docs/teams";
+var watchPath = resolve(process.argv[2] || "docs/teams");
 render(() => _$createComponent4(App, {
   watchPath
 }));
