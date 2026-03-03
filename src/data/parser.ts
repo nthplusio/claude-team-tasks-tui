@@ -1,4 +1,4 @@
-import { readdir, readFile } from "fs/promises"
+import { readdir, readFile, mkdir } from "fs/promises"
 import { join, basename } from "path"
 import matter from "gray-matter"
 import type { Team, TeamMeta, TeamType, TaskMeta } from "../types"
@@ -110,6 +110,7 @@ export async function parseTeam(dirPath: string): Promise<Team> {
 }
 
 export async function parseAllTeams(watchPath: string): Promise<Team[]> {
+  await mkdir(watchPath, { recursive: true })
   const entries = await readdir(watchPath, { withFileTypes: true })
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort)
 
