@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Show, onMount, onCleanup } from "solid-js"
+import { createSignal, createMemo, Switch, Match, Show, onMount, onCleanup } from "solid-js"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { Header } from "./components/Header"
 import { TeamList } from "./components/TeamList"
@@ -78,22 +78,11 @@ export function App(props: { watchPath: string }) {
     >
       <Header />
 
-      <Show when={state.viewMode === "detail"}>
-        <TaskDetail />
-      </Show>
-
-      <Show when={state.viewMode !== "detail"}>
-        <Show
-          when={isWide()}
-          fallback={
-            <Show
-              when={state.viewMode === "tasks"}
-              fallback={<TeamList focused={true} onSelect={handleTeamSelect} />}
-            >
-              <TaskList focused={true} onSelect={handleTaskSelect} />
-            </Show>
-          }
-        >
+      <Switch>
+        <Match when={state.viewMode === "detail"}>
+          <TaskDetail />
+        </Match>
+        <Match when={isWide()}>
           <box flexDirection="row" flexGrow={1}>
             <box width="30%">
               <TeamList focused={panelFocus() === "left"} onSelect={handleTeamSelect} />
@@ -102,8 +91,14 @@ export function App(props: { watchPath: string }) {
               <TaskList focused={panelFocus() === "right"} onSelect={handleTaskSelect} />
             </box>
           </box>
-        </Show>
-      </Show>
+        </Match>
+        <Match when={state.viewMode === "tasks"}>
+          <TaskList focused={true} onSelect={handleTaskSelect} />
+        </Match>
+        <Match when={state.viewMode === "teams"}>
+          <TeamList focused={true} onSelect={handleTeamSelect} />
+        </Match>
+      </Switch>
 
       <StatusBar />
     </box>
