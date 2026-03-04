@@ -12,7 +12,7 @@ import { insert as _$insert4 } from "@opentui/solid";
 import { createComponent as _$createComponent3 } from "@opentui/solid";
 import { setProp as _$setProp6 } from "@opentui/solid";
 import { createElement as _$createElement6 } from "@opentui/solid";
-import { createSignal, createMemo as createMemo5, Show as Show3, onMount, onCleanup } from "solid-js";
+import { createSignal, createMemo as createMemo5, Switch, Match, onMount, onCleanup } from "solid-js";
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid";
 
 // src/components/Header.tsx
@@ -459,7 +459,7 @@ import { watch } from "chokidar";
 import { join as join2, relative, sep } from "path";
 
 // src/data/parser.ts
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
 import matter from "gray-matter";
 var TYPE_PREFIXES = [
@@ -555,6 +555,7 @@ async function parseTeam(dirPath) {
   return { dir: dirName, meta, tasks };
 }
 async function parseAllTeams(watchPath) {
+  await mkdir(watchPath, { recursive: true });
   const entries = await readdir(watchPath, { withFileTypes: true });
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort);
   const teams = await Promise.all(dirs.map((d) => parseTeam(join(watchPath, d))));
@@ -658,41 +659,18 @@ function App(props) {
     _$setProp6(_el$, "width", "100%");
     _$setProp6(_el$, "height", "100%");
     _$insert4(_el$, _$createComponent3(Header, {}), null);
-    _$insert4(_el$, _$createComponent3(Show3, {
-      get when() {
-        return state.viewMode === "detail";
-      },
+    _$insert4(_el$, _$createComponent3(Switch, {
       get children() {
-        return _$createComponent3(TaskDetail, {});
-      }
-    }), null);
-    _$insert4(_el$, _$createComponent3(Show3, {
-      get when() {
-        return state.viewMode !== "detail";
-      },
-      get children() {
-        return _$createComponent3(Show3, {
+        return [_$createComponent3(Match, {
+          get when() {
+            return state.viewMode === "detail";
+          },
+          get children() {
+            return _$createComponent3(TaskDetail, {});
+          }
+        }), _$createComponent3(Match, {
           get when() {
             return isWide();
-          },
-          get fallback() {
-            return _$createComponent3(Show3, {
-              get when() {
-                return state.viewMode === "tasks";
-              },
-              get fallback() {
-                return _$createComponent3(TeamList, {
-                  focused: true,
-                  onSelect: handleTeamSelect
-                });
-              },
-              get children() {
-                return _$createComponent3(TaskList, {
-                  focused: true,
-                  onSelect: handleTaskSelect
-                });
-              }
-            });
           },
           get children() {
             var _el$2 = _$createElement6("box"), _el$3 = _$createElement6("box"), _el$4 = _$createElement6("box");
@@ -716,7 +694,27 @@ function App(props) {
             }));
             return _el$2;
           }
-        });
+        }), _$createComponent3(Match, {
+          get when() {
+            return state.viewMode === "tasks";
+          },
+          get children() {
+            return _$createComponent3(TaskList, {
+              focused: true,
+              onSelect: handleTaskSelect
+            });
+          }
+        }), _$createComponent3(Match, {
+          get when() {
+            return state.viewMode === "teams";
+          },
+          get children() {
+            return _$createComponent3(TeamList, {
+              focused: true,
+              onSelect: handleTeamSelect
+            });
+          }
+        })];
       }
     }), null);
     _$insert4(_el$, _$createComponent3(StatusBar, {}), null);
