@@ -1,10 +1,14 @@
-import { Show } from "solid-js"
-import { selectedTask, selectedTeam } from "../data/store"
+import { createMemo, Show } from "solid-js"
+import { state } from "../data/store"
 import { colors, teamTypeColors } from "../theme"
 
 export function TaskDetail() {
-  const task = selectedTask
-  const team = selectedTeam
+  const team = createMemo(() => state.teams[state.selectedTeamIndex])
+  const task = createMemo(() => {
+    const t = team()
+    if (!t) return undefined
+    return t.tasks[state.selectedTaskIndex]
+  })
 
   return (
     <box

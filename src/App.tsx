@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Switch, Match, Show, onMount, onCleanup } from "solid-js"
+import { createSignal, createMemo, Switch, Match } from "solid-js"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { Header } from "./components/Header"
 import { TeamList } from "./components/TeamList"
@@ -8,25 +8,16 @@ import { StatusBar } from "./components/StatusBar"
 import { colors } from "./theme"
 import {
   state,
-  setWatchPath,
   selectTeam,
   selectTask,
   setViewMode,
-  navigateBack,
 } from "./data/store"
-import { startWatcher } from "./data/watcher"
 
 export function App(props: { watchPath: string }) {
   const dimensions = useTerminalDimensions()
   const isWide = createMemo(() => dimensions().width >= 80)
 
   const [panelFocus, setPanelFocus] = createSignal<"left" | "right">("left")
-
-  onMount(async () => {
-    setWatchPath(props.watchPath)
-    const watcher = await startWatcher(props.watchPath)
-    onCleanup(() => watcher.close())
-  })
 
   // Handle team selection from the select component
   function handleTeamSelect(index: number) {

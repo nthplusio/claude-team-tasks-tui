@@ -12,7 +12,7 @@ import { insert as _$insert4 } from "@opentui/solid";
 import { createComponent as _$createComponent3 } from "@opentui/solid";
 import { setProp as _$setProp6 } from "@opentui/solid";
 import { createElement as _$createElement6 } from "@opentui/solid";
-import { createSignal, createMemo as createMemo5, Switch, Match, onMount, onCleanup } from "solid-js";
+import { createSignal, createMemo as createMemo5, Switch, Match } from "solid-js";
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid";
 
 // src/components/Header.tsx
@@ -87,11 +87,10 @@ import { createTextNode as _$createTextNode2 } from "@opentui/solid";
 import { insertNode as _$insertNode2 } from "@opentui/solid";
 import { setProp as _$setProp2 } from "@opentui/solid";
 import { createElement as _$createElement2 } from "@opentui/solid";
-import { createMemo as createMemo2 } from "solid-js";
+import { createMemo } from "solid-js";
 
 // src/data/store.ts
 import { createStore, produce } from "solid-js/store";
-import { createMemo } from "solid-js";
 var [state, setState] = createStore({
   teams: [],
   selectedTeamIndex: 0,
@@ -100,26 +99,16 @@ var [state, setState] = createStore({
   watchPath: "./docs/teams",
   lastUpdate: null
 });
-var selectedTeam = createMemo(() => state.teams[state.selectedTeamIndex]);
-var selectedTask = createMemo(() => {
-  const team = selectedTeam();
-  if (!team)
-    return;
-  return team.tasks[state.selectedTaskIndex];
-});
-var teamCount = createMemo(() => state.teams.length);
 function setTeams(teams) {
-  setState(produce((s) => {
-    s.teams = teams;
-    s.lastUpdate = new Date;
-    if (s.selectedTeamIndex >= teams.length) {
-      s.selectedTeamIndex = Math.max(0, teams.length - 1);
-    }
-    const team = teams[s.selectedTeamIndex];
-    if (team && s.selectedTaskIndex >= team.tasks.length) {
-      s.selectedTaskIndex = Math.max(0, team.tasks.length - 1);
-    }
-  }));
+  setState("teams", teams);
+  setState("lastUpdate", new Date);
+  if (state.selectedTeamIndex >= teams.length) {
+    setState("selectedTeamIndex", Math.max(0, teams.length - 1));
+  }
+  const team = teams[state.selectedTeamIndex];
+  if (team && state.selectedTaskIndex >= team.tasks.length) {
+    setState("selectedTaskIndex", Math.max(0, team.tasks.length - 1));
+  }
 }
 function updateTeam(dirName, team) {
   setState(produce((s) => {
@@ -143,7 +132,7 @@ function selectTeam(index) {
   }));
 }
 function selectTask(index) {
-  const team = selectedTeam();
+  const team = state.teams[state.selectedTeamIndex];
   if (!team)
     return;
   setState("selectedTaskIndex", Math.max(0, Math.min(index, team.tasks.length - 1)));
@@ -159,7 +148,7 @@ function statusIcon(status) {
   return "\u25CB";
 }
 function TeamList(props) {
-  const options = createMemo2(() => state.teams.map((team) => ({
+  const options = createMemo(() => state.teams.map((team) => ({
     name: `${statusIcon(team.meta.status)} ${team.dir}`,
     description: `${teamTypeLabel(team.meta.type)} | ${team.tasks.length} tasks`
   })));
@@ -219,10 +208,10 @@ import { insert as _$insert } from "@opentui/solid";
 import { memo as _$memo } from "@opentui/solid";
 import { setProp as _$setProp3 } from "@opentui/solid";
 import { createElement as _$createElement3 } from "@opentui/solid";
-import { createMemo as createMemo3, Show } from "solid-js";
+import { createMemo as createMemo2, Show } from "solid-js";
 function TaskList(props) {
-  const team = selectedTeam;
-  const options = createMemo3(() => {
+  const team = createMemo2(() => state.teams[state.selectedTeamIndex]);
+  const options = createMemo2(() => {
     const t = team();
     if (!t)
       return [];
@@ -231,7 +220,7 @@ function TaskList(props) {
       description: task.owner || task.id
     }));
   });
-  const headerText = createMemo3(() => {
+  const headerText = createMemo2(() => {
     const t = team();
     if (!t)
       return "No team selected";
@@ -325,10 +314,15 @@ import { insert as _$insert2 } from "@opentui/solid";
 import { memo as _$memo2 } from "@opentui/solid";
 import { setProp as _$setProp4 } from "@opentui/solid";
 import { createElement as _$createElement4 } from "@opentui/solid";
-import { Show as Show2 } from "solid-js";
+import { createMemo as createMemo3, Show as Show2 } from "solid-js";
 function TaskDetail() {
-  const task = selectedTask;
-  const team = selectedTeam;
+  const team = createMemo3(() => state.teams[state.selectedTeamIndex]);
+  const task = createMemo3(() => {
+    const t = team();
+    if (!t)
+      return;
+    return t.tasks[state.selectedTaskIndex];
+  });
   return (() => {
     var _el$ = _$createElement4("box"), _el$2 = _$createElement4("box"), _el$3 = _$createElement4("text");
     _$insertNode4(_el$, _el$2);
@@ -439,7 +433,7 @@ function StatusBar() {
     _$insertNode5(_el$2, _el$3);
     _$insertNode5(_el$2, _el$4);
     _$insert3(_el$2, shortPath, _el$3);
-    _$insert3(_el$2, teamCount, _el$4);
+    _$insert3(_el$2, () => state.teams.length, _el$4);
     _$insert3(_el$2, timeStr, null);
     _$effect5((_p$) => {
       var _v$ = colors.bgDark, _v$2 = colors.fgMuted;
@@ -454,9 +448,113 @@ function StatusBar() {
   })();
 }
 
-// src/data/watcher.ts
-import { watch } from "chokidar";
-import { join as join2, relative, sep } from "path";
+// src/App.tsx
+function App(props) {
+  const dimensions = useTerminalDimensions();
+  const isWide = createMemo5(() => dimensions().width >= 80);
+  const [panelFocus, setPanelFocus] = createSignal("left");
+  function handleTeamSelect(index) {
+    selectTeam(index);
+    if (isWide()) {
+      setPanelFocus("right");
+    } else {
+      setViewMode("tasks");
+    }
+  }
+  function handleTaskSelect(index) {
+    selectTask(index);
+    setViewMode("detail");
+  }
+  useKeyboard((key) => {
+    if (key.name === "q") {
+      process.exit(0);
+    }
+    if (key.name === "escape") {
+      if (state.viewMode === "detail") {
+        setViewMode("tasks");
+        if (isWide())
+          setPanelFocus("right");
+      } else if (state.viewMode === "tasks" && !isWide()) {
+        setViewMode("teams");
+      } else if (isWide() && panelFocus() === "right") {
+        setPanelFocus("left");
+      }
+    }
+    if (key.name === "tab") {
+      if (isWide() && state.viewMode !== "detail") {
+        setPanelFocus((f) => f === "left" ? "right" : "left");
+      }
+    }
+  });
+  return (() => {
+    var _el$ = _$createElement6("box");
+    _$setProp6(_el$, "flexDirection", "column");
+    _$setProp6(_el$, "width", "100%");
+    _$setProp6(_el$, "height", "100%");
+    _$insert4(_el$, _$createComponent3(Header, {}), null);
+    _$insert4(_el$, _$createComponent3(Switch, {
+      get children() {
+        return [_$createComponent3(Match, {
+          get when() {
+            return state.viewMode === "detail";
+          },
+          get children() {
+            return _$createComponent3(TaskDetail, {});
+          }
+        }), _$createComponent3(Match, {
+          get when() {
+            return isWide();
+          },
+          get children() {
+            var _el$2 = _$createElement6("box"), _el$3 = _$createElement6("box"), _el$4 = _$createElement6("box");
+            _$insertNode6(_el$2, _el$3);
+            _$insertNode6(_el$2, _el$4);
+            _$setProp6(_el$2, "flexDirection", "row");
+            _$setProp6(_el$2, "flexGrow", 1);
+            _$setProp6(_el$3, "width", "30%");
+            _$insert4(_el$3, _$createComponent3(TeamList, {
+              get focused() {
+                return panelFocus() === "left";
+              },
+              onSelect: handleTeamSelect
+            }));
+            _$setProp6(_el$4, "flexGrow", 1);
+            _$insert4(_el$4, _$createComponent3(TaskList, {
+              get focused() {
+                return panelFocus() === "right";
+              },
+              onSelect: handleTaskSelect
+            }));
+            return _el$2;
+          }
+        }), _$createComponent3(Match, {
+          get when() {
+            return state.viewMode === "tasks";
+          },
+          get children() {
+            return _$createComponent3(TaskList, {
+              focused: true,
+              onSelect: handleTaskSelect
+            });
+          }
+        }), _$createComponent3(Match, {
+          get when() {
+            return state.viewMode === "teams";
+          },
+          get children() {
+            return _$createComponent3(TeamList, {
+              focused: true,
+              onSelect: handleTeamSelect
+            });
+          }
+        })];
+      }
+    }), null);
+    _$insert4(_el$, _$createComponent3(StatusBar, {}), null);
+    _$effect6((_$p) => _$setProp6(_el$, "backgroundColor", colors.bg, _$p));
+    return _el$;
+  })();
+}
 
 // src/data/parser.ts
 import { readdir, readFile, mkdir } from "fs/promises";
@@ -563,6 +661,8 @@ async function parseAllTeams(watchPath) {
 }
 
 // src/data/watcher.ts
+import { watch } from "chokidar";
+import { join as join2, relative, sep } from "path";
 var debounceTimer = null;
 var pendingDirs = new Set;
 function getTeamDir(watchPath, changedPath) {
@@ -573,9 +673,7 @@ function getTeamDir(watchPath, changedPath) {
   }
   return null;
 }
-async function startWatcher(watchPath) {
-  const teams = await parseAllTeams(watchPath);
-  setTeams(teams);
+function startFileWatcher(watchPath) {
   const watcher = watch(watchPath, {
     ignoreInitial: true,
     depth: 3,
@@ -610,121 +708,12 @@ async function startWatcher(watchPath) {
   return watcher;
 }
 
-// src/App.tsx
-function App(props) {
-  const dimensions = useTerminalDimensions();
-  const isWide = createMemo5(() => dimensions().width >= 80);
-  const [panelFocus, setPanelFocus] = createSignal("left");
-  onMount(async () => {
-    setWatchPath(props.watchPath);
-    const watcher = await startWatcher(props.watchPath);
-    onCleanup(() => watcher.close());
-  });
-  function handleTeamSelect(index) {
-    selectTeam(index);
-    if (isWide()) {
-      setPanelFocus("right");
-    } else {
-      setViewMode("tasks");
-    }
-  }
-  function handleTaskSelect(index) {
-    selectTask(index);
-    setViewMode("detail");
-  }
-  useKeyboard((key) => {
-    if (key.name === "q") {
-      process.exit(0);
-    }
-    if (key.name === "escape") {
-      if (state.viewMode === "detail") {
-        setViewMode("tasks");
-        if (isWide())
-          setPanelFocus("right");
-      } else if (state.viewMode === "tasks" && !isWide()) {
-        setViewMode("teams");
-      } else if (isWide() && panelFocus() === "right") {
-        setPanelFocus("left");
-      }
-    }
-    if (key.name === "tab") {
-      if (isWide() && state.viewMode !== "detail") {
-        setPanelFocus((f) => f === "left" ? "right" : "left");
-      }
-    }
-  });
-  return (() => {
-    var _el$ = _$createElement6("box");
-    _$setProp6(_el$, "flexDirection", "column");
-    _$setProp6(_el$, "width", "100%");
-    _$setProp6(_el$, "height", "100%");
-    _$insert4(_el$, _$createComponent3(Header, {}), null);
-    _$insert4(_el$, _$createComponent3(Switch, {
-      get children() {
-        return [_$createComponent3(Match, {
-          get when() {
-            return state.viewMode === "detail";
-          },
-          get children() {
-            return _$createComponent3(TaskDetail, {});
-          }
-        }), _$createComponent3(Match, {
-          get when() {
-            return isWide();
-          },
-          get children() {
-            var _el$2 = _$createElement6("box"), _el$3 = _$createElement6("box"), _el$4 = _$createElement6("box");
-            _$insertNode6(_el$2, _el$3);
-            _$insertNode6(_el$2, _el$4);
-            _$setProp6(_el$2, "flexDirection", "row");
-            _$setProp6(_el$2, "flexGrow", 1);
-            _$setProp6(_el$3, "width", "30%");
-            _$insert4(_el$3, _$createComponent3(TeamList, {
-              get focused() {
-                return panelFocus() === "left";
-              },
-              onSelect: handleTeamSelect
-            }));
-            _$setProp6(_el$4, "flexGrow", 1);
-            _$insert4(_el$4, _$createComponent3(TaskList, {
-              get focused() {
-                return panelFocus() === "right";
-              },
-              onSelect: handleTaskSelect
-            }));
-            return _el$2;
-          }
-        }), _$createComponent3(Match, {
-          get when() {
-            return state.viewMode === "tasks";
-          },
-          get children() {
-            return _$createComponent3(TaskList, {
-              focused: true,
-              onSelect: handleTaskSelect
-            });
-          }
-        }), _$createComponent3(Match, {
-          get when() {
-            return state.viewMode === "teams";
-          },
-          get children() {
-            return _$createComponent3(TeamList, {
-              focused: true,
-              onSelect: handleTeamSelect
-            });
-          }
-        })];
-      }
-    }), null);
-    _$insert4(_el$, _$createComponent3(StatusBar, {}), null);
-    _$effect6((_$p) => _$setProp6(_el$, "backgroundColor", colors.bg, _$p));
-    return _el$;
-  })();
-}
-
 // index.tsx
 var watchPath = resolve(process.argv[2] || "docs/teams");
+var teams = await parseAllTeams(watchPath);
+setWatchPath(watchPath);
+setTeams(teams);
+startFileWatcher(watchPath);
 render(() => _$createComponent4(App, {
   watchPath
 }));

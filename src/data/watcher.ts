@@ -1,7 +1,7 @@
 import { watch } from "chokidar"
 import { join, relative, sep } from "path"
-import { parseTeam, parseAllTeams } from "./parser"
-import { setTeams, updateTeam } from "./store"
+import { parseTeam } from "./parser"
+import { updateTeam } from "./store"
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 const pendingDirs = new Set<string>()
@@ -16,12 +16,7 @@ function getTeamDir(watchPath: string, changedPath: string): string | null {
   return null
 }
 
-export async function startWatcher(watchPath: string) {
-  // Initial load
-  const teams = await parseAllTeams(watchPath)
-  setTeams(teams)
-
-  // Watch for changes
+export function startFileWatcher(watchPath: string) {
   const watcher = watch(watchPath, {
     ignoreInitial: true,
     depth: 3,

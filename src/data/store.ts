@@ -1,5 +1,4 @@
 import { createStore, produce } from "solid-js/store"
-import { createMemo } from "solid-js"
 import type { AppState, Team, ViewMode } from "../types"
 
 const [state, setState] = createStore<AppState>({
@@ -13,35 +12,17 @@ const [state, setState] = createStore<AppState>({
 
 export { state }
 
-// Derived memos
-export const selectedTeam = createMemo<Team | undefined>(() =>
-  state.teams[state.selectedTeamIndex]
-)
-
-export const selectedTask = createMemo(() => {
-  const team = selectedTeam()
-  if (!team) return undefined
-  return team.tasks[state.selectedTaskIndex]
-})
-
-export const teamCount = createMemo(() => state.teams.length)
-
 // Actions
 export function setTeams(teams: Team[]) {
-  setState(
-    produce((s) => {
-      s.teams = teams
-      s.lastUpdate = new Date()
-      // Clamp indices
-      if (s.selectedTeamIndex >= teams.length) {
-        s.selectedTeamIndex = Math.max(0, teams.length - 1)
-      }
-      const team = teams[s.selectedTeamIndex]
-      if (team && s.selectedTaskIndex >= team.tasks.length) {
-        s.selectedTaskIndex = Math.max(0, team.tasks.length - 1)
-      }
-    })
-  )
+  setState("teams", teams)
+  setState("lastUpdate", new Date())
+  if (state.selectedTeamIndex >= teams.length) {
+    setState("selectedTeamIndex", Math.max(0, teams.length - 1))
+  }
+  const team = teams[state.selectedTeamIndex]
+  if (team && state.selectedTaskIndex >= team.tasks.length) {
+    setState("selectedTaskIndex", Math.max(0, team.tasks.length - 1))
+  }
 }
 
 export function updateTeam(dirName: string, team: Team) {
@@ -75,7 +56,7 @@ export function selectTeam(index: number) {
 }
 
 export function selectTask(index: number) {
-  const team = selectedTeam()
+  const team = state.teams[state.selectedTeamIndex]
   if (!team) return
   setState("selectedTaskIndex", Math.max(0, Math.min(index, team.tasks.length - 1)))
 }

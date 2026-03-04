@@ -1,6 +1,6 @@
 import { createMemo } from "solid-js"
 import { basename } from "path"
-import { state, teamCount } from "../data/store"
+import { state } from "../data/store"
 import { colors } from "../theme"
 
 export function StatusBar() {
@@ -27,7 +27,7 @@ export function StatusBar() {
       padding={{ left: 1, right: 1 }}
     >
       <text fg={colors.fgMuted}>
-        {shortPath()} | Teams: {teamCount()} | Updated: {timeStr()}
+        {shortPath()} | Teams: {state.teams.length} | Updated: {timeStr()}
       </text>
     </box>
   )

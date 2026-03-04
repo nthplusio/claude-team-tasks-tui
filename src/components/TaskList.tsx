@@ -1,9 +1,9 @@
 import { createMemo, Show } from "solid-js"
-import { selectedTeam } from "../data/store"
+import { state } from "../data/store"
 import { colors, teamTypeColors, teamTypeLabel } from "../theme"
 
 export function TaskList(props: { focused: boolean; onSelect: (index: number) => void }) {
-  const team = selectedTeam
+  const team = createMemo(() => state.teams[state.selectedTeamIndex])
 
   const options = createMemo(() => {
     const t = team()
