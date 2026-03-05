@@ -169,7 +169,7 @@ function TeamList(props) {
     _$setProp2(_el$3, "bold", true);
     _$setProp2(_el$5, "width", "100%");
     _$setProp2(_el$5, "flexGrow", 1);
-    _$setProp2(_el$5, "on:itemSelected", (index) => props.onSelect(index));
+    _$setProp2(_el$5, "onSelect", (index) => props.onSelect(index));
     _$effect2((_p$) => {
       var _v$ = props.focused ? colors.blue : colors.border, _v$2 = colors.bgDark, _v$3 = colors.cyan, _v$4 = options(), _v$5 = props.focused, _v$6 = colors.bg, _v$7 = colors.selection, _v$8 = colors.fg, _v$9 = colors.fgDark, _v$0 = colors.fgMuted;
       _v$ !== _p$.e && (_p$.e = _$setProp2(_el$, "borderColor", _v$, _p$.e));
@@ -265,7 +265,7 @@ function TaskList(props) {
         var _el$6 = _$createElement3("select");
         _$setProp3(_el$6, "width", "100%");
         _$setProp3(_el$6, "flexGrow", 1);
-        _$setProp3(_el$6, "on:itemSelected", (index) => props.onSelect(index));
+        _$setProp3(_el$6, "onSelect", (index) => props.onSelect(index));
         _$effect3((_p$) => {
           var _v$ = options(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
           _v$ !== _p$.e && (_p$.e = _$setProp3(_el$6, "options", _v$, _p$.e));

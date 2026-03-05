@@ -39,7 +39,7 @@ export function TeamList(props: { focused: boolean; onSelect: (index: number) =>
         descriptionColor={colors.fgMuted}
         width="100%"
         flexGrow={1}
-        on:itemSelected={(index: number) => props.onSelect(index)}
+        onSelect={(index: number) => props.onSelect(index)}
       />
     </box>
   )
