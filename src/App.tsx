@@ -1,5 +1,5 @@
 import { createSignal, createMemo, Switch, Match } from "solid-js"
-import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
+import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid"
 import { Header } from "./components/Header"
 import { TeamList } from "./components/TeamList"
 import { TaskList } from "./components/TaskList"
@@ -14,31 +14,48 @@ import {
 } from "./data/store"
 
 export function App(props: { watchPath: string }) {
+  const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
   const isWide = createMemo(() => dimensions().width >= 80)
 
   const [panelFocus, setPanelFocus] = createSignal<"left" | "right">("left")
+  const [lastKey, setLastKey] = createSignal("")
 
-  // Handle team selection from the select component
+  // Update task panel preview as user navigates teams
+  function handleTeamChange(index: number) {
+    setLastKey(`onChange:team[${index}]`)
+    selectTeam(index)
+  }
+
+  // Handle team selection (Enter) from the select component
   function handleTeamSelect(index: number) {
+    setLastKey(`select:team[${index}]`)
     selectTeam(index)
     if (isWide()) {
-      // In wide mode, just switch focus to task panel
       setPanelFocus("right")
     } else {
-      // In narrow mode, switch to tasks view
       setViewMode("tasks")
     }
   }
 
-  // Handle task selection from the select component
+  // Update selected task as user navigates
+  function handleTaskChange(index: number) {
+    setLastKey(`onChange:task[${index}]`)
+    selectTask(index)
+  }
+
+  // Handle task selection (Enter) from the select component
   function handleTaskSelect(index: number) {
+    setLastKey(`select:task[${index}]`)
     selectTask(index)
     setViewMode("detail")
   }
 
   useKeyboard((key) => {
-    if (key.name === "q") {
+    setLastKey(`key:${key.name}`)
+
+    if (key.name === "q" || (key.ctrl && key.name === "c")) {
+      renderer.destroy()
       process.exit(0)
     }
 
@@ -76,22 +93,22 @@ export function App(props: { watchPath: string }) {
         <Match when={isWide()}>
           <box flexDirection="row" flexGrow={1}>
             <box width="30%">
-              <TeamList focused={panelFocus() === "left"} onSelect={handleTeamSelect} />
+              <TeamList focused={panelFocus() === "left"} onSelect={handleTeamSelect} onChange={handleTeamChange} />
             </box>
             <box flexGrow={1}>
-              <TaskList focused={panelFocus() === "right"} onSelect={handleTaskSelect} />
+              <TaskList focused={panelFocus() === "right"} onSelect={handleTaskSelect} onChange={handleTaskChange} />
             </box>
           </box>
         </Match>
         <Match when={state.viewMode === "tasks"}>
-          <TaskList focused={true} onSelect={handleTaskSelect} />
+          <TaskList focused={true} onSelect={handleTaskSelect} onChange={handleTaskChange} />
         </Match>
         <Match when={state.viewMode === "teams"}>
-          <TeamList focused={true} onSelect={handleTeamSelect} />
+          <TeamList focused={true} onSelect={handleTeamSelect} onChange={handleTeamChange} />
         </Match>
       </Switch>
 
-      <StatusBar />
+      <StatusBar lastKey={lastKey()} panelFocus={panelFocus()} />
     </box>
   )
 }

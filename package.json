@@ -1,6 +1,6 @@
 {
   "name": "claude-team-tasks-tui",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "bin": {
     "claude-team-tasks-tui": "./dist/cli.js"
@@ -13,7 +13,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "@opentui/solid": "latest",
+    "@opentui/solid": "0.1.86",
     "solid-js": "^1.9.0",
     "chokidar": "^4.0.0",
     "gray-matter": "^4.0.3"

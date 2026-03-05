@@ -13,7 +13,7 @@ import { createComponent as _$createComponent3 } from "@opentui/solid";
 import { setProp as _$setProp6 } from "@opentui/solid";
 import { createElement as _$createElement6 } from "@opentui/solid";
 import { createSignal, createMemo as createMemo5, Switch, Match } from "solid-js";
-import { useKeyboard, useTerminalDimensions } from "@opentui/solid";
+import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid";
 
 // src/components/Header.tsx
 import { effect as _$effect } from "@opentui/solid";
@@ -402,10 +402,11 @@ import { effect as _$effect5 } from "@opentui/solid";
 import { createTextNode as _$createTextNode5 } from "@opentui/solid";
 import { insertNode as _$insertNode5 } from "@opentui/solid";
 import { insert as _$insert3 } from "@opentui/solid";
+import { memo as _$memo3 } from "@opentui/solid";
 import { setProp as _$setProp5 } from "@opentui/solid";
 import { createElement as _$createElement5 } from "@opentui/solid";
 import { createMemo as createMemo4 } from "solid-js";
-function StatusBar() {
+function StatusBar(props) {
   const timeStr = createMemo4(() => {
     const d = state.lastUpdate;
     if (!d)
@@ -423,7 +424,7 @@ function StatusBar() {
     return ".../" + parts.slice(-2).join("/");
   });
   return (() => {
-    var _el$ = _$createElement5("box"), _el$2 = _$createElement5("text"), _el$3 = _$createTextNode5(` | Teams: `), _el$4 = _$createTextNode5(` | Updated: `);
+    var _el$ = _$createElement5("box"), _el$2 = _$createElement5("text"), _el$3 = _$createTextNode5(` | `), _el$4 = _$createTextNode5(` teams | `), _el$5 = _$createTextNode5(` | focus:`), _el$6 = _$createTextNode5(` | `);
     _$insertNode5(_el$, _el$2);
     _$setProp5(_el$, "width", "100%");
     _$setProp5(_el$, "height", 1);
@@ -434,9 +435,13 @@ function StatusBar() {
     });
     _$insertNode5(_el$2, _el$3);
     _$insertNode5(_el$2, _el$4);
+    _$insertNode5(_el$2, _el$5);
+    _$insertNode5(_el$2, _el$6);
     _$insert3(_el$2, shortPath, _el$3);
     _$insert3(_el$2, () => state.teams.length, _el$4);
-    _$insert3(_el$2, timeStr, null);
+    _$insert3(_el$2, timeStr, _el$5);
+    _$insert3(_el$2, () => props.panelFocus || "?", _el$6);
+    _$insert3(_el$2, () => props.lastKey || "j/k:nav enter:select q:quit", null);
     _$effect5((_p$) => {
       var _v$ = colors.bgDark, _v$2 = colors.fgMuted;
       _v$ !== _p$.e && (_p$.e = _$setProp5(_el$, "backgroundColor", _v$, _p$.e));
@@ -452,13 +457,17 @@ function StatusBar() {
 
 // src/App.tsx
 function App(props) {
+  const renderer = useRenderer();
   const dimensions = useTerminalDimensions();
   const isWide = createMemo5(() => dimensions().width >= 80);
   const [panelFocus, setPanelFocus] = createSignal("left");
+  const [lastKey, setLastKey] = createSignal("");
   function handleTeamChange(index) {
+    setLastKey(`onChange:team[${index}]`);
     selectTeam(index);
   }
   function handleTeamSelect(index) {
+    setLastKey(`select:team[${index}]`);
     selectTeam(index);
     if (isWide()) {
       setPanelFocus("right");
@@ -467,14 +476,18 @@ function App(props) {
     }
   }
   function handleTaskChange(index) {
+    setLastKey(`onChange:task[${index}]`);
     selectTask(index);
   }
   function handleTaskSelect(index) {
+    setLastKey(`select:task[${index}]`);
     selectTask(index);
     setViewMode("detail");
   }
   useKeyboard((key) => {
-    if (key.name === "q") {
+    setLastKey(`key:${key.name}`);
+    if (key.name === "q" || key.ctrl && key.name === "c") {
+      renderer.destroy();
       process.exit(0);
     }
     if (key.name === "escape") {
@@ -562,7 +575,14 @@ function App(props) {
         })];
       }
     }), null);
-    _$insert4(_el$, _$createComponent3(StatusBar, {}), null);
+    _$insert4(_el$, _$createComponent3(StatusBar, {
+      get lastKey() {
+        return lastKey();
+      },
+      get panelFocus() {
+        return panelFocus();
+      }
+    }), null);
     _$effect6((_$p) => _$setProp6(_el$, "backgroundColor", colors.bg, _$p));
     return _el$;
   })();
