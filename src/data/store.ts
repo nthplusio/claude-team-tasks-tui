@@ -30,13 +30,11 @@ export function updateTeam(dirName: string, team: Team) {
   setState(
     produce((s) => {
       const idx = s.teams.findIndex((t) => t.dir === dirName)
+      team.lastModified = Date.now()
       if (idx >= 0) {
         s.teams[idx] = team
       } else {
         s.teams.push(team)
-        s.teams.sort((a, b) =>
-          a.dir.localeCompare(b.dir, undefined, { numeric: true, sensitivity: "base" })
-        )
       }
       s.lastUpdate = new Date()
     })
@@ -47,7 +45,7 @@ export function setWatchPath(path: string) {
   setState("watchPath", path)
 }
 
-/** Build unified team list: live teams first, then docs teams */
+/** Build unified team list sorted by most recently modified */
 export function getUnifiedTeams(): UnifiedTeamEntry[] {
   const entries: UnifiedTeamEntry[] = []
   for (const lt of state.liveTeams) {
@@ -56,6 +54,11 @@ export function getUnifiedTeams(): UnifiedTeamEntry[] {
   for (const dt of state.teams) {
     entries.push({ kind: "docs", team: dt })
   }
+  entries.sort((a, b) => {
+    const aTime = a.kind === "live" ? a.team.lastModified : a.team.lastModified
+    const bTime = b.kind === "live" ? b.team.lastModified : b.team.lastModified
+    return bTime - aTime
+  })
   return entries
 }
 
@@ -110,14 +113,11 @@ export function updateLiveTeam(dirName: string, tasks: LiveTask[], displayName: 
   setState(
     produce((s) => {
       const idx = s.liveTeams.findIndex((t) => t.dirName === dirName)
-      const team: LiveTeam = { dirName, displayName, tasks, config }
+      const team: LiveTeam = { dirName, displayName, tasks, config, lastModified: Date.now() }
       if (idx >= 0) {
         s.liveTeams[idx] = team
       } else {
         s.liveTeams.push(team)
-        s.liveTeams.sort((a, b) =>
-          a.dirName.localeCompare(b.dirName, undefined, { numeric: true, sensitivity: "base" })
-        )
       }
       s.lastUpdate = new Date()
     })

@@ -1,4 +1,4 @@
-import { readdir, readFile, mkdir } from "fs/promises"
+import { readdir, readFile, mkdir, stat } from "fs/promises"
 import { join, basename } from "path"
 import matter from "gray-matter"
 import type { Team, TeamMeta, TeamType, TaskMeta } from "../types"
@@ -99,23 +99,32 @@ async function parseTasks(dirPath: string): Promise<TaskMeta[]> {
   }
 }
 
+async function getDirMtime(dirPath: string): Promise<number> {
+  try {
+    const s = await stat(dirPath)
+    return s.mtimeMs
+  } catch { return 0 }
+}
+
 export async function parseTeam(dirPath: string): Promise<Team> {
   const dirName = basename(dirPath)
-  const [meta, tasks] = await Promise.all([
+  const [meta, tasks, lastModified] = await Promise.all([
     parseReadme(dirPath, dirName),
     parseTasks(dirPath),
+    getDirMtime(dirPath),
   ])
 
-  return { dir: dirName, meta, tasks }
+  return { dir: dirName, meta, tasks, lastModified }
 }
 
 export async function parseAllTeams(watchPath: string): Promise<Team[]> {
   await mkdir(watchPath, { recursive: true })
   const entries = await readdir(watchPath, { withFileTypes: true })
-  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort)
+  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name)
 
   const teams = await Promise.all(
     dirs.map((d) => parseTeam(join(watchPath, d)))
   )
-  return teams
+  // Sort by most recent first
+  return teams.sort((a, b) => b.lastModified - a.lastModified)
 }

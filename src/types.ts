@@ -24,6 +24,7 @@ export interface Team {
   dir: string
   meta: TeamMeta
   tasks: TaskMeta[]
+  lastModified: number
 }
 
 // Live task monitoring types
@@ -57,6 +58,7 @@ export interface LiveTeam {
   displayName: string
   tasks: LiveTask[]
   config?: TeamConfig
+  lastModified: number
 }
 
 // Unified team entry for merged list display

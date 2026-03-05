@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir } from "fs/promises"
+import { readFile, readdir, mkdir, stat } from "fs/promises"
 import { join, basename } from "path"
 import type { LiveTask, LiveTeam, TeamConfig, TeamMember } from "../types"
 
@@ -109,6 +109,28 @@ export function shortUUID(s: string): string {
   return s.slice(0, 8)
 }
 
+/** Get the most recent mtime of files in a directory (or dir mtime as fallback) */
+export async function getDirMtime(dirPath: string): Promise<number> {
+  try {
+    const entries = await readdir(dirPath)
+    if (entries.length === 0) {
+      const s = await stat(dirPath)
+      return s.mtimeMs
+    }
+    const mtimes = await Promise.all(
+      entries.map(async (f) => {
+        try {
+          const s = await stat(join(dirPath, f))
+          return s.mtimeMs
+        } catch { return 0 }
+      })
+    )
+    return Math.max(...mtimes)
+  } catch {
+    return 0
+  }
+}
+
 export async function parseAllLiveTeams(tasksPath: string): Promise<LiveTeam[]> {
   await mkdir(tasksPath, { recursive: true })
   const entries = await readdir(tasksPath, { withFileTypes: true })
@@ -116,13 +138,17 @@ export async function parseAllLiveTeams(tasksPath: string): Promise<LiveTeam[]> 
   const dirs = entries
     .filter((e) => e.isDirectory() && !isUUID(e.name))
     .map((e) => e.name)
-    .sort(naturalSort)
 
   const teams = await Promise.all(
     dirs.map(async (dirName): Promise<LiveTeam> => {
-      const tasks = await parseTeamTasks(join(tasksPath, dirName))
-      return { dirName, displayName: dirName, tasks }
+      const dirPath = join(tasksPath, dirName)
+      const [tasks, lastModified] = await Promise.all([
+        parseTeamTasks(dirPath),
+        getDirMtime(dirPath),
+      ])
+      return { dirName, displayName: dirName, tasks, lastModified }
     })
   )
-  return teams
+  // Sort by most recent first
+  return teams.sort((a, b) => b.lastModified - a.lastModified)
 }

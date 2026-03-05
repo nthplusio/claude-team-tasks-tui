@@ -2072,11 +2072,11 @@ function setTeams(teams) {
 function updateTeam(dirName, team) {
   setState(produce((s) => {
     const idx = s.teams.findIndex((t) => t.dir === dirName);
+    team.lastModified = Date.now();
     if (idx >= 0) {
       s.teams[idx] = team;
     } else {
       s.teams.push(team);
-      s.teams.sort((a, b) => a.dir.localeCompare(b.dir, undefined, { numeric: true, sensitivity: "base" }));
     }
     s.lastUpdate = new Date;
   }));
@@ -2092,6 +2092,11 @@ function getUnifiedTeams() {
   for (const dt of state.teams) {
     entries.push({ kind: "docs", team: dt });
   }
+  entries.sort((a, b) => {
+    const aTime = a.kind === "live" ? a.team.lastModified : a.team.lastModified;
+    const bTime = b.kind === "live" ? b.team.lastModified : b.team.lastModified;
+    return bTime - aTime;
+  });
   return entries;
 }
 function selectTeam(index) {
@@ -2119,12 +2124,11 @@ function setLiveTeams(liveTeams) {
 function updateLiveTeam(dirName, tasks, displayName, config) {
   setState(produce((s) => {
     const idx = s.liveTeams.findIndex((t) => t.dirName === dirName);
-    const team = { dirName, displayName, tasks, config };
+    const team = { dirName, displayName, tasks, config, lastModified: Date.now() };
     if (idx >= 0) {
       s.liveTeams[idx] = team;
     } else {
       s.liveTeams.push(team);
-      s.liveTeams.sort((a, b) => a.dirName.localeCompare(b.dirName, undefined, { numeric: true, sensitivity: "base" }));
     }
     s.lastUpdate = new Date;
   }));
@@ -2815,7 +2819,7 @@ function App(props) {
 }
 
 // src/data/parser.ts
-import { readdir, readFile, mkdir } from "fs/promises";
+import { readdir, readFile, mkdir, stat } from "fs/promises";
 import { join, basename } from "path";
 import matter from "gray-matter";
 var TYPE_PREFIXES = [
@@ -2902,24 +2906,33 @@ async function parseTasks(dirPath) {
     return [];
   }
 }
+async function getDirMtime(dirPath) {
+  try {
+    const s = await stat(dirPath);
+    return s.mtimeMs;
+  } catch {
+    return 0;
+  }
+}
 async function parseTeam(dirPath) {
   const dirName = basename(dirPath);
-  const [meta, tasks] = await Promise.all([
+  const [meta, tasks, lastModified] = await Promise.all([
     parseReadme(dirPath, dirName),
-    parseTasks(dirPath)
+    parseTasks(dirPath),
+    getDirMtime(dirPath)
   ]);
-  return { dir: dirName, meta, tasks };
+  return { dir: dirName, meta, tasks, lastModified };
 }
 async function parseAllTeams(watchPath) {
   await mkdir(watchPath, { recursive: true });
   const entries = await readdir(watchPath, { withFileTypes: true });
-  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort);
+  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
   const teams = await Promise.all(dirs.map((d) => parseTeam(join(watchPath, d))));
-  return teams;
+  return teams.sort((a, b) => b.lastModified - a.lastModified);
 }
 
 // src/data/json-parser.ts
-import { readFile as readFile2, readdir as readdir2, mkdir as mkdir2 } from "fs/promises";
+import { readFile as readFile2, readdir as readdir2, mkdir as mkdir2, stat as stat2 } from "fs/promises";
 import { join as join2, basename as basename2 } from "path";
 var VALID_STATUSES = new Set(["pending", "in_progress", "completed"]);
 function asString(val) {
@@ -2979,15 +2992,39 @@ var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUUID(s) {
   return UUID_RE.test(s);
 }
+async function getDirMtime2(dirPath) {
+  try {
+    const entries = await readdir2(dirPath);
+    if (entries.length === 0) {
+      const s = await stat2(dirPath);
+      return s.mtimeMs;
+    }
+    const mtimes = await Promise.all(entries.map(async (f) => {
+      try {
+        const s = await stat2(join2(dirPath, f));
+        return s.mtimeMs;
+      } catch {
+        return 0;
+      }
+    }));
+    return Math.max(...mtimes);
+  } catch {
+    return 0;
+  }
+}
 async function parseAllLiveTeams(tasksPath) {
   await mkdir2(tasksPath, { recursive: true });
   const entries = await readdir2(tasksPath, { withFileTypes: true });
-  const dirs = entries.filter((e) => e.isDirectory() && !isUUID(e.name)).map((e) => e.name).sort(naturalSort2);
+  const dirs = entries.filter((e) => e.isDirectory() && !isUUID(e.name)).map((e) => e.name);
   const teams = await Promise.all(dirs.map(async (dirName) => {
-    const tasks = await parseTeamTasks(join2(tasksPath, dirName));
-    return { dirName, displayName: dirName, tasks };
+    const dirPath = join2(tasksPath, dirName);
+    const [tasks, lastModified] = await Promise.all([
+      parseTeamTasks(dirPath),
+      getDirMtime2(dirPath)
+    ]);
+    return { dirName, displayName: dirName, tasks, lastModified };
   }));
-  return teams;
+  return teams.sort((a, b) => b.lastModified - a.lastModified);
 }
 
 // src/data/watcher.ts
