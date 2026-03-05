@@ -106,13 +106,8 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
     >
       <box height={1} backgroundColor={colors.bgDark} padding={{ left: 1 }}>
         <text bold fg={headerColor()}>
-          {headerName()}
+          {entry()?.kind === "live" ? `${headerName()} LIVE` : headerName()}
         </text>
-        <Show when={entry()?.kind === "live"}>
-          <text bold fg={colors.green}>
-            {" "}LIVE
-          </text>
-        </Show>
       </box>
       <box height={1} padding={{ left: 1 }}>
         <text fg={colors.fgMuted}>{headerText()}</text>

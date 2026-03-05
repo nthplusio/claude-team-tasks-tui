@@ -2162,9 +2162,9 @@ function TeamList(props) {
   })));
   const hasLive = createMemo(() => state.liveTeams.length > 0);
   return (() => {
-    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$5 = createElement("select");
+    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$4 = createElement("select");
     insertNode(_el$, _el$2);
-    insertNode(_el$, _el$5);
+    insertNode(_el$, _el$4);
     setProp(_el$, "flexDirection", "column");
     setProp(_el$, "borderStyle", "single");
     setProp(_el$, "flexGrow", 1);
@@ -2174,34 +2174,24 @@ function TeamList(props) {
     setProp(_el$2, "padding", {
       left: 1
     });
-    insertNode(_el$3, createTextNode(`Teams`));
     setProp(_el$3, "bold", true);
-    insert(_el$2, (() => {
-      var _c$ = memo2(() => !!hasLive());
-      return () => _c$() && (() => {
-        var _el$6 = createElement("text"), _el$7 = createTextNode(` LIVE`);
-        insertNode(_el$6, _el$7);
-        setProp(_el$6, "bold", true);
-        effect((_$p) => setProp(_el$6, "fg", colors.green, _$p));
-        return _el$6;
-      })();
-    })(), null);
-    setProp(_el$5, "width", "100%");
-    setProp(_el$5, "flexGrow", 1);
-    setProp(_el$5, "onSelect", (index) => props.onSelect(index));
-    setProp(_el$5, "onChange", (index) => props.onChange?.(index));
+    insert(_el$3, () => hasLive() ? "Teams LIVE" : "Teams");
+    setProp(_el$4, "width", "100%");
+    setProp(_el$4, "flexGrow", 1);
+    setProp(_el$4, "onSelect", (index) => props.onSelect(index));
+    setProp(_el$4, "onChange", (index) => props.onChange?.(index));
     effect((_p$) => {
       var _v$ = props.focused ? colors.blue : colors.border, _v$2 = colors.bgDark, _v$3 = colors.cyan, _v$4 = options(), _v$5 = props.focused, _v$6 = colors.bg, _v$7 = colors.selection, _v$8 = colors.fg, _v$9 = colors.fgDark, _v$0 = colors.fgMuted;
       _v$ !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$, _p$.e));
       _v$2 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$2, _p$.t));
       _v$3 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$3, _p$.a));
-      _v$4 !== _p$.o && (_p$.o = setProp(_el$5, "options", _v$4, _p$.o));
-      _v$5 !== _p$.i && (_p$.i = setProp(_el$5, "focused", _v$5, _p$.i));
-      _v$6 !== _p$.n && (_p$.n = setProp(_el$5, "backgroundColor", _v$6, _p$.n));
-      _v$7 !== _p$.s && (_p$.s = setProp(_el$5, "selectedBackgroundColor", _v$7, _p$.s));
-      _v$8 !== _p$.h && (_p$.h = setProp(_el$5, "selectedTextColor", _v$8, _p$.h));
-      _v$9 !== _p$.r && (_p$.r = setProp(_el$5, "textColor", _v$9, _p$.r));
-      _v$0 !== _p$.d && (_p$.d = setProp(_el$5, "descriptionColor", _v$0, _p$.d));
+      _v$4 !== _p$.o && (_p$.o = setProp(_el$4, "options", _v$4, _p$.o));
+      _v$5 !== _p$.i && (_p$.i = setProp(_el$4, "focused", _v$5, _p$.i));
+      _v$6 !== _p$.n && (_p$.n = setProp(_el$4, "backgroundColor", _v$6, _p$.n));
+      _v$7 !== _p$.s && (_p$.s = setProp(_el$4, "selectedBackgroundColor", _v$7, _p$.s));
+      _v$8 !== _p$.h && (_p$.h = setProp(_el$4, "selectedTextColor", _v$8, _p$.h));
+      _v$9 !== _p$.r && (_p$.r = setProp(_el$4, "textColor", _v$9, _p$.r));
+      _v$0 !== _p$.d && (_p$.d = setProp(_el$4, "descriptionColor", _v$0, _p$.d));
       return _p$;
     }, {
       e: undefined,
@@ -2305,9 +2295,9 @@ function TaskList(props) {
     return e.team.config.members.map((m) => m.name).join(" | ");
   });
   return (() => {
-    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$7 = createElement("box"), _el$8 = createElement("text");
+    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$4 = createElement("box"), _el$5 = createElement("text");
     insertNode(_el$, _el$2);
-    insertNode(_el$, _el$7);
+    insertNode(_el$, _el$4);
     setProp(_el$, "flexDirection", "column");
     setProp(_el$, "borderStyle", "single");
     setProp(_el$, "flexGrow", 2);
@@ -2318,39 +2308,30 @@ function TaskList(props) {
       left: 1
     });
     setProp(_el$3, "bold", true);
-    insert(_el$3, headerName);
-    insert(_el$2, createComponent2(Show, {
-      get when() {
-        return entry()?.kind === "live";
-      },
-      get children() {
-        var _el$4 = createElement("text"), _el$5 = createTextNode(` LIVE`);
-        insertNode(_el$4, _el$5);
-        setProp(_el$4, "bold", true);
-        effect((_$p) => setProp(_el$4, "fg", colors.green, _$p));
-        return _el$4;
-      }
-    }), null);
-    insertNode(_el$7, _el$8);
-    setProp(_el$7, "height", 1);
-    setProp(_el$7, "padding", {
+    insert(_el$3, (() => {
+      var _c$ = memo2(() => entry()?.kind === "live");
+      return () => _c$() ? `${headerName()} LIVE` : headerName();
+    })());
+    insertNode(_el$4, _el$5);
+    setProp(_el$4, "height", 1);
+    setProp(_el$4, "padding", {
       left: 1
     });
-    insert(_el$8, headerText);
+    insert(_el$5, headerText);
     insert(_el$, createComponent2(Show, {
       get when() {
         return memberRoster();
       },
       get children() {
-        var _el$9 = createElement("box"), _el$0 = createElement("text");
-        insertNode(_el$9, _el$0);
-        setProp(_el$9, "height", 1);
-        setProp(_el$9, "padding", {
+        var _el$6 = createElement("box"), _el$7 = createElement("text");
+        insertNode(_el$6, _el$7);
+        setProp(_el$6, "height", 1);
+        setProp(_el$6, "padding", {
           left: 1
         });
-        insert(_el$0, memberRoster);
-        effect((_$p) => setProp(_el$0, "fg", colors.purple, _$p));
-        return _el$9;
+        insert(_el$7, memberRoster);
+        effect((_$p) => setProp(_el$7, "fg", colors.purple, _$p));
+        return _el$6;
       }
     }), null);
     insert(_el$, createComponent2(Show, {
@@ -2359,29 +2340,29 @@ function TaskList(props) {
       },
       get fallback() {
         return (() => {
-          var _el$10 = createElement("box"), _el$11 = createElement("text");
-          insertNode(_el$10, _el$11);
-          setProp(_el$10, "padding", 1);
-          insertNode(_el$11, createTextNode(`No tasks found`));
-          effect((_$p) => setProp(_el$11, "fg", colors.fgDark, _$p));
-          return _el$10;
+          var _el$9 = createElement("box"), _el$0 = createElement("text");
+          insertNode(_el$9, _el$0);
+          setProp(_el$9, "padding", 1);
+          insertNode(_el$0, createTextNode(`No tasks found`));
+          effect((_$p) => setProp(_el$0, "fg", colors.fgDark, _$p));
+          return _el$9;
         })();
       },
       get children() {
-        var _el$1 = createElement("select");
-        setProp(_el$1, "width", "100%");
-        setProp(_el$1, "flexGrow", 1);
-        setProp(_el$1, "onSelect", (index) => props.onSelect(index));
-        setProp(_el$1, "onChange", (index) => props.onChange?.(index));
+        var _el$8 = createElement("select");
+        setProp(_el$8, "width", "100%");
+        setProp(_el$8, "flexGrow", 1);
+        setProp(_el$8, "onSelect", (index) => props.onSelect(index));
+        setProp(_el$8, "onChange", (index) => props.onChange?.(index));
         effect((_p$) => {
           var _v$ = options(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
-          _v$ !== _p$.e && (_p$.e = setProp(_el$1, "options", _v$, _p$.e));
-          _v$2 !== _p$.t && (_p$.t = setProp(_el$1, "focused", _v$2, _p$.t));
-          _v$3 !== _p$.a && (_p$.a = setProp(_el$1, "backgroundColor", _v$3, _p$.a));
-          _v$4 !== _p$.o && (_p$.o = setProp(_el$1, "selectedBackgroundColor", _v$4, _p$.o));
-          _v$5 !== _p$.i && (_p$.i = setProp(_el$1, "selectedTextColor", _v$5, _p$.i));
-          _v$6 !== _p$.n && (_p$.n = setProp(_el$1, "textColor", _v$6, _p$.n));
-          _v$7 !== _p$.s && (_p$.s = setProp(_el$1, "descriptionColor", _v$7, _p$.s));
+          _v$ !== _p$.e && (_p$.e = setProp(_el$8, "options", _v$, _p$.e));
+          _v$2 !== _p$.t && (_p$.t = setProp(_el$8, "focused", _v$2, _p$.t));
+          _v$3 !== _p$.a && (_p$.a = setProp(_el$8, "backgroundColor", _v$3, _p$.a));
+          _v$4 !== _p$.o && (_p$.o = setProp(_el$8, "selectedBackgroundColor", _v$4, _p$.o));
+          _v$5 !== _p$.i && (_p$.i = setProp(_el$8, "selectedTextColor", _v$5, _p$.i));
+          _v$6 !== _p$.n && (_p$.n = setProp(_el$8, "textColor", _v$6, _p$.n));
+          _v$7 !== _p$.s && (_p$.s = setProp(_el$8, "descriptionColor", _v$7, _p$.s));
           return _p$;
         }, {
           e: undefined,
@@ -2392,7 +2373,7 @@ function TaskList(props) {
           n: undefined,
           s: undefined
         });
-        return _el$1;
+        return _el$8;
       }
     }), null);
     effect((_p$) => {
@@ -2400,7 +2381,7 @@ function TaskList(props) {
       _v$8 !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$8, _p$.e));
       _v$9 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$9, _p$.t));
       _v$0 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$0, _p$.a));
-      _v$1 !== _p$.o && (_p$.o = setProp(_el$8, "fg", _v$1, _p$.o));
+      _v$1 !== _p$.o && (_p$.o = setProp(_el$5, "fg", _v$1, _p$.o));
       return _p$;
     }, {
       e: undefined,
@@ -2514,39 +2495,33 @@ function TaskDetail() {
           },
           get children() {
             return [(() => {
-              var _el$4 = createElement("box"), _el$5 = createElement("text"), _el$7 = createElement("text");
+              var _el$4 = createElement("box"), _el$5 = createElement("text");
               insertNode(_el$4, _el$5);
-              insertNode(_el$4, _el$7);
               setProp(_el$4, "padding", {
                 left: 1,
                 right: 1
               });
-              insert(_el$5, () => statusLabel(liveTask().status));
-              insert(_el$4, createComponent2(Show, {
-                get when() {
-                  return liveTask().owner;
-                },
-                get children() {
-                  var _el$6 = createElement("text");
-                  insert(_el$6, () => ` | ${liveTask().owner}`);
-                  effect((_$p) => setProp(_el$6, "fg", ownerFg(), _$p));
-                  return _el$6;
-                }
-              }), _el$7);
-              insert(_el$7, () => ` | #${liveTask().id}`);
-              effect((_p$) => {
-                var _v$ = colors.fgMuted, _v$2 = colors.fgMuted;
-                _v$ !== _p$.e && (_p$.e = setProp(_el$5, "fg", _v$, _p$.e));
-                _v$2 !== _p$.t && (_p$.t = setProp(_el$7, "fg", _v$2, _p$.t));
-                return _p$;
-              }, {
-                e: undefined,
-                t: undefined
-              });
+              insert(_el$5, () => `${statusLabel(liveTask().status)}${liveTask().owner ? ` | ${liveTask().owner}` : ""} | #${liveTask().id}`);
+              effect((_$p) => setProp(_el$5, "fg", colors.fgMuted, _$p));
               return _el$4;
             })(), createComponent2(Show, {
               get when() {
                 return memo2(() => liveTask().status === "in_progress")() && liveTask().activeForm;
+              },
+              get children() {
+                var _el$6 = createElement("box"), _el$7 = createElement("text");
+                insertNode(_el$6, _el$7);
+                setProp(_el$6, "padding", {
+                  left: 1,
+                  right: 1
+                });
+                insert(_el$7, () => liveTask().activeForm);
+                effect((_$p) => setProp(_el$7, "fg", colors.yellow, _$p));
+                return _el$6;
+              }
+            }), createComponent2(Show, {
+              get when() {
+                return depsLine();
               },
               get children() {
                 var _el$8 = createElement("box"), _el$9 = createElement("text");
@@ -2555,54 +2530,39 @@ function TaskDetail() {
                   left: 1,
                   right: 1
                 });
-                insert(_el$9, () => liveTask().activeForm);
-                effect((_$p) => setProp(_el$9, "fg", colors.yellow, _$p));
+                insert(_el$9, depsLine);
+                effect((_$p) => setProp(_el$9, "fg", colors.orange, _$p));
                 return _el$8;
-              }
-            }), createComponent2(Show, {
-              get when() {
-                return depsLine();
-              },
-              get children() {
-                var _el$0 = createElement("box"), _el$1 = createElement("text");
-                insertNode(_el$0, _el$1);
-                setProp(_el$0, "padding", {
-                  left: 1,
-                  right: 1
-                });
-                insert(_el$1, depsLine);
-                effect((_$p) => setProp(_el$1, "fg", colors.orange, _$p));
-                return _el$0;
               }
             }), createComponent2(Show, {
               get when() {
                 return liveTask().description;
               },
               get children() {
-                var _el$10 = createElement("scrollbox"), _el$11 = createElement("box"), _el$12 = createElement("text");
-                insertNode(_el$10, _el$11);
-                setProp(_el$10, "flexGrow", 1);
-                setProp(_el$10, "width", "100%");
-                insertNode(_el$11, _el$12);
-                setProp(_el$11, "padding", {
+                var _el$0 = createElement("scrollbox"), _el$1 = createElement("box"), _el$10 = createElement("text");
+                insertNode(_el$0, _el$1);
+                setProp(_el$0, "flexGrow", 1);
+                setProp(_el$0, "width", "100%");
+                insertNode(_el$1, _el$10);
+                setProp(_el$1, "padding", {
                   left: 1,
                   right: 1
                 });
-                insert(_el$12, () => liveTask().description);
-                effect((_$p) => setProp(_el$12, "fg", colors.fg, _$p));
-                return _el$10;
+                insert(_el$10, () => liveTask().description);
+                effect((_$p) => setProp(_el$10, "fg", colors.fg, _$p));
+                return _el$0;
               }
             }), createComponent2(Show, {
               get when() {
                 return !liveTask().description;
               },
               get children() {
-                var _el$13 = createElement("box"), _el$14 = createElement("text");
-                insertNode(_el$13, _el$14);
-                setProp(_el$13, "padding", 1);
-                insertNode(_el$14, createTextNode(`No description`));
-                effect((_$p) => setProp(_el$14, "fg", colors.fgDark, _$p));
-                return _el$13;
+                var _el$11 = createElement("box"), _el$12 = createElement("text");
+                insertNode(_el$11, _el$12);
+                setProp(_el$11, "padding", 1);
+                insertNode(_el$12, createTextNode(`No description`));
+                effect((_$p) => setProp(_el$12, "fg", colors.fgDark, _$p));
+                return _el$11;
               }
             })];
           }
@@ -2612,50 +2572,50 @@ function TaskDetail() {
           },
           get children() {
             return [(() => {
-              var _el$16 = createElement("box"), _el$17 = createElement("text");
-              insertNode(_el$16, _el$17);
-              setProp(_el$16, "padding", {
+              var _el$14 = createElement("box"), _el$15 = createElement("text");
+              insertNode(_el$14, _el$15);
+              setProp(_el$14, "padding", {
                 left: 1,
                 right: 1
               });
-              insert(_el$17, () => docsTask().filename, null);
-              insert(_el$17, (() => {
+              insert(_el$15, () => docsTask().filename, null);
+              insert(_el$15, (() => {
                 var _c$ = memo2(() => !!docsTask().owner);
                 return () => _c$() ? ` | ${docsTask().owner}` : "";
               })(), null);
-              insert(_el$17, (() => {
+              insert(_el$15, (() => {
                 var _c$2 = memo2(() => !!docsTask().date);
                 return () => _c$2() ? ` | ${docsTask().date}` : "";
               })(), null);
-              effect((_$p) => setProp(_el$17, "fg", colors.fgMuted, _$p));
-              return _el$16;
+              effect((_$p) => setProp(_el$15, "fg", colors.fgMuted, _$p));
+              return _el$14;
             })(), (() => {
-              var _el$18 = createElement("scrollbox"), _el$19 = createElement("markdown");
-              insertNode(_el$18, _el$19);
-              setProp(_el$18, "flexGrow", 1);
-              setProp(_el$18, "width", "100%");
-              insert(_el$19, () => docsTask().content);
-              return _el$18;
+              var _el$16 = createElement("scrollbox"), _el$17 = createElement("markdown");
+              insertNode(_el$16, _el$17);
+              setProp(_el$16, "flexGrow", 1);
+              setProp(_el$16, "width", "100%");
+              insert(_el$17, () => docsTask().content);
+              return _el$16;
             })()];
           }
         }), createComponent2(Match, {
           when: true,
           get children() {
-            var _el$20 = createElement("box"), _el$21 = createElement("text");
-            insertNode(_el$20, _el$21);
-            setProp(_el$20, "padding", 1);
-            insertNode(_el$21, createTextNode(`Select a task to view details`));
-            effect((_$p) => setProp(_el$21, "fg", colors.fgDark, _$p));
-            return _el$20;
+            var _el$18 = createElement("box"), _el$19 = createElement("text");
+            insertNode(_el$18, _el$19);
+            setProp(_el$18, "padding", 1);
+            insertNode(_el$19, createTextNode(`Select a task to view details`));
+            effect((_$p) => setProp(_el$19, "fg", colors.fgDark, _$p));
+            return _el$18;
           }
         })];
       }
     }), null);
     effect((_p$) => {
-      var _v$3 = colors.blue, _v$4 = colors.bgDark, _v$5 = headerColor();
-      _v$3 !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$3, _p$.e));
-      _v$4 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$4, _p$.t));
-      _v$5 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$5, _p$.a));
+      var _v$ = colors.blue, _v$2 = colors.bgDark, _v$3 = headerColor();
+      _v$ !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$, _p$.e));
+      _v$2 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$2, _p$.t));
+      _v$3 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$3, _p$.a));
       return _p$;
     }, {
       e: undefined,

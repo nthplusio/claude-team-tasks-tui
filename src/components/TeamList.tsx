@@ -50,13 +50,8 @@ export function TeamList(props: { focused: boolean; onSelect: (index: number) =>
     >
       <box height={1} backgroundColor={colors.bgDark} padding={{ left: 1 }}>
         <text bold fg={colors.cyan}>
-          Teams
+          {hasLive() ? "Teams LIVE" : "Teams"}
         </text>
-        {hasLive() && (
-          <text bold fg={colors.green}>
-            {" "}LIVE
-          </text>
-        )}
       </box>
       <select
         options={options()}

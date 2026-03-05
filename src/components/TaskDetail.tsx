@@ -97,15 +97,7 @@ export function TaskDetail() {
         <Match when={liveTask()}>
           <box padding={{ left: 1, right: 1 }}>
             <text fg={colors.fgMuted}>
-              {statusLabel(liveTask()!.status)}
-            </text>
-            <Show when={liveTask()!.owner}>
-              <text fg={ownerFg()}>
-                {` | ${liveTask()!.owner}`}
-              </text>
-            </Show>
-            <text fg={colors.fgMuted}>
-              {` | #${liveTask()!.id}`}
+              {`${statusLabel(liveTask()!.status)}${liveTask()!.owner ? ` | ${liveTask()!.owner}` : ""} | #${liveTask()!.id}`}
             </text>
           </box>
           <Show when={liveTask()!.status === "in_progress" && liveTask()!.activeForm}>
