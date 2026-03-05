@@ -54,7 +54,8 @@ export function getTasksDir(): string {
 }
 
 /**
- * Scan ~/.claude/teams/\*\/config.json and return a map of teamName → TeamConfig.
+ * Scan ~/.claude/teams/\*\/config.json and return a map keyed by BOTH
+ * the directory name and config.name, so lookups work for UUID and named dirs.
  */
 export async function scanTeamConfigs(): Promise<Map<string, TeamConfig>> {
   const configs = new Map<string, TeamConfig>()
@@ -70,7 +71,10 @@ export async function scanTeamConfigs(): Promise<Map<string, TeamConfig>> {
           const raw = await readFile(join(teamsDir, dirName, "config.json"), "utf-8")
           const config = parseConfig(raw)
           if (config) {
-            configs.set(config.name, config)
+            configs.set(dirName, config)
+            if (config.name !== dirName) {
+              configs.set(config.name, config)
+            }
           }
         } catch {
           // No config.json or unreadable — skip

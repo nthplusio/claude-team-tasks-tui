@@ -112,16 +112,16 @@ export function shortUUID(s: string): string {
 export async function parseAllLiveTeams(tasksPath: string): Promise<LiveTeam[]> {
   await mkdir(tasksPath, { recursive: true })
   const entries = await readdir(tasksPath, { withFileTypes: true })
-  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort)
+  // Skip UUID dirs — they're Claude Code session tasks, not agent teams
+  const dirs = entries
+    .filter((e) => e.isDirectory() && !isUUID(e.name))
+    .map((e) => e.name)
+    .sort(naturalSort)
 
   const teams = await Promise.all(
     dirs.map(async (dirName): Promise<LiveTeam> => {
       const tasks = await parseTeamTasks(join(tasksPath, dirName))
-      return {
-        dirName,
-        displayName: isUUID(dirName) ? shortUUID(dirName) : dirName,
-        tasks,
-      }
+      return { dirName, displayName: dirName, tasks }
     })
   )
   return teams

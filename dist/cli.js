@@ -2979,20 +2979,13 @@ var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUUID(s) {
   return UUID_RE.test(s);
 }
-function shortUUID(s) {
-  return s.slice(0, 8);
-}
 async function parseAllLiveTeams(tasksPath) {
   await mkdir2(tasksPath, { recursive: true });
   const entries = await readdir2(tasksPath, { withFileTypes: true });
-  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort2);
+  const dirs = entries.filter((e) => e.isDirectory() && !isUUID(e.name)).map((e) => e.name).sort(naturalSort2);
   const teams = await Promise.all(dirs.map(async (dirName) => {
     const tasks = await parseTeamTasks(join2(tasksPath, dirName));
-    return {
-      dirName,
-      displayName: isUUID(dirName) ? shortUUID(dirName) : dirName,
-      tasks
-    };
+    return { dirName, displayName: dirName, tasks };
   }));
   return teams;
 }
@@ -3113,7 +3106,10 @@ async function scanTeamConfigs() {
         const raw = await readFile3(join4(teamsDir, dirName, "config.json"), "utf-8");
         const config = parseConfig(raw);
         if (config) {
-          configs.set(config.name, config);
+          configs.set(dirName, config);
+          if (config.name !== dirName) {
+            configs.set(config.name, config);
+          }
         }
       } catch {}
     }));
@@ -3170,7 +3166,7 @@ async function startJsonWatcher(tasksPath) {
     if (shouldIgnore(filePath))
       return;
     const teamDir = getTeamDir2(tasksPath, filePath);
-    if (!teamDir)
+    if (!teamDir || isUUID(teamDir))
       return;
     pendingDirs2.add(teamDir);
     if (debounceTimer2)

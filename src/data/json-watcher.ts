@@ -1,7 +1,7 @@
 import { watch } from "chokidar"
 import { join, relative, sep } from "path"
 import { mkdir } from "fs/promises"
-import { parseTeamTasks } from "./json-parser"
+import { parseTeamTasks, isUUID } from "./json-parser"
 import { scanTeamConfigs, resolveDisplayName } from "./config-reader"
 import { updateLiveTeam } from "./store"
 import type { TeamConfig } from "../types"
@@ -49,7 +49,7 @@ export async function startJsonWatcher(tasksPath: string) {
     if (shouldIgnore(filePath)) return
 
     const teamDir = getTeamDir(tasksPath, filePath)
-    if (!teamDir) return
+    if (!teamDir || isUUID(teamDir)) return
 
     pendingDirs.add(teamDir)
 
