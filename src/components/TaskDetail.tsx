@@ -1,13 +1,83 @@
-import { createMemo, Show } from "solid-js"
-import { state } from "../data/store"
+import { createMemo, Show, Switch, Match } from "solid-js"
+import { state, getUnifiedTeams } from "../data/store"
 import { colors, teamTypeColors } from "../theme"
+import type { UnifiedTeamEntry, LiveTask, TaskMeta, TeamConfig } from "../types"
+
+function statusLabel(status: LiveTask["status"]): string {
+  switch (status) {
+    case "in_progress": return "\u25B6 In Progress"
+    case "completed": return "\u2713 Completed"
+    case "pending":
+    default: return "\u25CF Pending"
+  }
+}
+
+/** Resolve owner color from team config members */
+function ownerColor(owner: string | undefined, config: TeamConfig | undefined): string {
+  if (!owner || !config) return colors.fg
+  const member = config.members.find((m) => m.name === owner)
+  return member?.color || colors.fg
+}
+
+/** Format dependency list */
+function depStr(label: string, ids: string[]): string {
+  if (ids.length === 0) return ""
+  return `${label}: ${ids.map((id) => `#${id}`).join(", ")}`
+}
 
 export function TaskDetail() {
-  const team = createMemo(() => state.teams[state.selectedTeamIndex])
-  const task = createMemo(() => {
-    const t = team()
-    if (!t) return undefined
-    return t.tasks[state.selectedTaskIndex]
+  const entry = createMemo((): UnifiedTeamEntry | undefined => {
+    const unified = getUnifiedTeams()
+    return unified[state.selectedTeamIndex]
+  })
+
+  const liveTask = createMemo((): LiveTask | undefined => {
+    const e = entry()
+    if (!e || e.kind !== "live") return undefined
+    return e.team.tasks[state.selectedTaskIndex]
+  })
+
+  const docsTask = createMemo((): TaskMeta | undefined => {
+    const e = entry()
+    if (!e || e.kind !== "docs") return undefined
+    return e.team.tasks[state.selectedTaskIndex]
+  })
+
+  const teamConfig = createMemo((): TeamConfig | undefined => {
+    const e = entry()
+    if (!e || e.kind !== "live") return undefined
+    return e.team.config
+  })
+
+  const headerColor = createMemo(() => {
+    const e = entry()
+    if (!e) return colors.fgDark
+    if (e.kind === "live") return colors.green
+    return teamTypeColors[e.team.meta.type || "unknown"]
+  })
+
+  const title = createMemo(() => {
+    const lt = liveTask()
+    if (lt) return lt.subject
+    const dt = docsTask()
+    if (dt) return dt.title
+    return "No task selected"
+  })
+
+  const depsLine = createMemo(() => {
+    const lt = liveTask()
+    if (!lt) return ""
+    const parts: string[] = []
+    const blocksStr = depStr("Blocks", lt.blocks)
+    const blockedByStr = depStr("Blocked by", lt.blockedBy)
+    if (blocksStr) parts.push(blocksStr)
+    if (blockedByStr) parts.push(blockedByStr)
+    return parts.join(" | ")
+  })
+
+  const ownerFg = createMemo(() => {
+    const lt = liveTask()
+    return ownerColor(lt?.owner, teamConfig())
   })
 
   return (
@@ -19,29 +89,70 @@ export function TaskDetail() {
       flexGrow={1}
     >
       <box height={1} backgroundColor={colors.bgDark} padding={{ left: 1 }}>
-        <text bold fg={teamTypeColors[team()?.meta.type || "unknown"]}>
-          {task()?.title || "No task selected"}
+        <text bold fg={headerColor()}>
+          {title()}
         </text>
       </box>
-      <Show
-        when={task()}
-        fallback={
+      <Switch>
+        <Match when={liveTask()}>
+          <box padding={{ left: 1, right: 1 }}>
+            <text fg={colors.fgMuted}>
+              {statusLabel(liveTask()!.status)}
+            </text>
+            <Show when={liveTask()!.owner}>
+              <text fg={ownerFg()}>
+                {` | ${liveTask()!.owner}`}
+              </text>
+            </Show>
+            <text fg={colors.fgMuted}>
+              {` | #${liveTask()!.id}`}
+            </text>
+          </box>
+          <Show when={liveTask()!.status === "in_progress" && liveTask()!.activeForm}>
+            <box padding={{ left: 1, right: 1 }}>
+              <text fg={colors.yellow}>
+                {liveTask()!.activeForm}
+              </text>
+            </box>
+          </Show>
+          <Show when={depsLine()}>
+            <box padding={{ left: 1, right: 1 }}>
+              <text fg={colors.orange}>
+                {depsLine()}
+              </text>
+            </box>
+          </Show>
+          <Show when={liveTask()!.description}>
+            <scrollbox flexGrow={1} width="100%">
+              <box padding={{ left: 1, right: 1 }}>
+                <text fg={colors.fg}>{liveTask()!.description}</text>
+              </box>
+            </scrollbox>
+          </Show>
+          <Show when={!liveTask()!.description}>
+            <box padding={1}>
+              <text fg={colors.fgDark}>No description</text>
+            </box>
+          </Show>
+        </Match>
+        <Match when={docsTask()}>
+          <box padding={{ left: 1, right: 1 }}>
+            <text fg={colors.fgMuted}>
+              {docsTask()!.filename}
+              {docsTask()!.owner ? ` | ${docsTask()!.owner}` : ""}
+              {docsTask()!.date ? ` | ${docsTask()!.date}` : ""}
+            </text>
+          </box>
+          <scrollbox flexGrow={1} width="100%">
+            <markdown>{docsTask()!.content}</markdown>
+          </scrollbox>
+        </Match>
+        <Match when={true}>
           <box padding={1}>
             <text fg={colors.fgDark}>Select a task to view details</text>
           </box>
-        }
-      >
-        <box padding={{ left: 1, right: 1 }}>
-          <text fg={colors.fgMuted}>
-            {task()!.filename}
-            {task()!.owner ? ` | ${task()!.owner}` : ""}
-            {task()!.date ? ` | ${task()!.date}` : ""}
-          </text>
-        </box>
-        <scrollbox flexGrow={1} width="100%">
-          <markdown>{task()!.content}</markdown>
-        </scrollbox>
-      </Show>
+        </Match>
+      </Switch>
     </box>
   )
 }

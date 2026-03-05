@@ -26,10 +26,49 @@ export interface Team {
   tasks: TaskMeta[]
 }
 
+// Live task monitoring types
+
+export interface LiveTask {
+  id: string
+  subject: string
+  description?: string
+  activeForm?: string
+  owner?: string
+  status: "pending" | "in_progress" | "completed"
+  blocks: string[]
+  blockedBy: string[]
+}
+
+export interface TeamMember {
+  name: string
+  agentType: string
+  model: string
+  color: string
+}
+
+export interface TeamConfig {
+  name: string
+  description: string
+  members: TeamMember[]
+}
+
+export interface LiveTeam {
+  dirName: string
+  displayName: string
+  tasks: LiveTask[]
+  config?: TeamConfig
+}
+
+// Unified team entry for merged list display
+export type UnifiedTeamEntry =
+  | { kind: "live"; team: LiveTeam }
+  | { kind: "docs"; team: Team }
+
 export type ViewMode = "teams" | "tasks" | "detail"
 
 export interface AppState {
   teams: Team[]
+  liveTeams: LiveTeam[]
   selectedTeamIndex: number
   selectedTaskIndex: number
   viewMode: ViewMode

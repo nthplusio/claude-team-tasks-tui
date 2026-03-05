@@ -25,7 +25,7 @@ export function StatusBar(props: { lastKey?: string; panelFocus?: string }) {
       padding={{ left: 1, right: 1 }}
     >
       <text fg={colors.fgMuted}>
-        {shortPath()} | {state.teams.length} teams | {timeStr()} | focus:{props.panelFocus || "?"} | {props.lastKey || "j/k:nav enter:select q:quit"}
+        {shortPath()} | {state.teams.length + state.liveTeams.length} teams{state.liveTeams.length > 0 ? ` (${state.liveTeams.length} live)` : ""} | {timeStr()} | focus:{props.panelFocus || "?"} | {props.lastKey || "j/k:nav enter:select q:quit"}
       </text>
     </box>
   )

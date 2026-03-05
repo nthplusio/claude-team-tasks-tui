@@ -1,8 +1,9 @@
 import { createStore, produce } from "solid-js/store"
-import type { AppState, Team, ViewMode } from "../types"
+import type { AppState, Team, LiveTeam, TeamConfig, LiveTask, UnifiedTeamEntry, ViewMode } from "../types"
 
 const [state, setState] = createStore<AppState>({
   teams: [],
+  liveTeams: [],
   selectedTeamIndex: 0,
   selectedTaskIndex: 0,
   viewMode: "teams",
@@ -46,19 +47,34 @@ export function setWatchPath(path: string) {
   setState("watchPath", path)
 }
 
+/** Build unified team list: live teams first, then docs teams */
+export function getUnifiedTeams(): UnifiedTeamEntry[] {
+  const entries: UnifiedTeamEntry[] = []
+  for (const lt of state.liveTeams) {
+    entries.push({ kind: "live", team: lt })
+  }
+  for (const dt of state.teams) {
+    entries.push({ kind: "docs", team: dt })
+  }
+  return entries
+}
+
 export function selectTeam(index: number) {
+  const totalTeams = state.liveTeams.length + state.teams.length
   setState(
     produce((s) => {
-      s.selectedTeamIndex = Math.max(0, Math.min(index, s.teams.length - 1))
+      s.selectedTeamIndex = Math.max(0, Math.min(index, totalTeams - 1))
       s.selectedTaskIndex = 0
     })
   )
 }
 
 export function selectTask(index: number) {
-  const team = state.teams[state.selectedTeamIndex]
-  if (!team) return
-  setState("selectedTaskIndex", Math.max(0, Math.min(index, team.tasks.length - 1)))
+  const unified = getUnifiedTeams()
+  const entry = unified[state.selectedTeamIndex]
+  if (!entry) return
+  const taskCount = entry.kind === "live" ? entry.team.tasks.length : entry.team.tasks.length
+  setState("selectedTaskIndex", Math.max(0, Math.min(index, taskCount - 1)))
 }
 
 export function setViewMode(mode: ViewMode) {
@@ -81,4 +97,41 @@ export function navigateForward() {
   } else if (state.viewMode === "tasks") {
     setState("viewMode", "detail")
   }
+}
+
+// Live task store actions
+
+export function setLiveTeams(liveTeams: LiveTeam[]) {
+  setState("liveTeams", liveTeams)
+  setState("lastUpdate", new Date())
+}
+
+export function updateLiveTeam(dirName: string, tasks: LiveTask[], displayName: string, config?: TeamConfig) {
+  setState(
+    produce((s) => {
+      const idx = s.liveTeams.findIndex((t) => t.dirName === dirName)
+      const team: LiveTeam = { dirName, displayName, tasks, config }
+      if (idx >= 0) {
+        s.liveTeams[idx] = team
+      } else {
+        s.liveTeams.push(team)
+        s.liveTeams.sort((a, b) =>
+          a.dirName.localeCompare(b.dirName, undefined, { numeric: true, sensitivity: "base" })
+        )
+      }
+      s.lastUpdate = new Date()
+    })
+  )
+}
+
+export function removeLiveTeam(dirName: string) {
+  setState(
+    produce((s) => {
+      const idx = s.liveTeams.findIndex((t) => t.dirName === dirName)
+      if (idx >= 0) {
+        s.liveTeams.splice(idx, 1)
+        s.lastUpdate = new Date()
+      }
+    })
+  )
 }

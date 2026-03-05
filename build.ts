@@ -7,11 +7,8 @@ const result = await Bun.build({
   format: "esm",
   plugins: [solidPlugin],
   external: [
-    "@opentui/solid",
+    // Only keep packages with native modules or large dependencies external
     "@opentui/core",
-    "solid-js",
-    "solid-js/store",
-    "solid-js/web",
     "chokidar",
     "gray-matter",
   ],

@@ -1,20 +1,44 @@
 import { createMemo } from "solid-js"
-import { state } from "../data/store"
-import { colors } from "../theme"
-import { teamTypeLabel } from "../theme"
+import { state, getUnifiedTeams } from "../data/store"
+import { colors, teamTypeLabel } from "../theme"
+import type { UnifiedTeamEntry } from "../types"
 
-function statusIcon(status?: string): string {
-  if (status === "completed") return "\u2713"
-  return "\u25CB"
+function teamOptionName(entry: UnifiedTeamEntry): string {
+  if (entry.kind === "live") {
+    const t = entry.team
+    const inProgress = t.tasks.filter((tk) => tk.status === "in_progress").length
+    const completed = t.tasks.filter((tk) => tk.status === "completed").length
+    const total = t.tasks.length
+    const prefix = inProgress > 0 ? "\u25B6" : completed === total && total > 0 ? "\u2713" : "\u25CF"
+    return `${prefix} ${t.displayName}`
+  }
+  const t = entry.team
+  const icon = t.meta.status === "completed" ? "\u2713" : "\u25CB"
+  return `${icon} ${t.dir}`
 }
 
-export function TeamList(props: { focused: boolean; onSelect: (index: number) => void }) {
+function teamOptionDesc(entry: UnifiedTeamEntry): string {
+  if (entry.kind === "live") {
+    const t = entry.team
+    const inProgress = t.tasks.filter((tk) => tk.status === "in_progress").length
+    const completed = t.tasks.filter((tk) => tk.status === "completed").length
+    return `LIVE | ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
+  }
+  const t = entry.team
+  return `${teamTypeLabel(t.meta.type)} | ${t.tasks.length} tasks`
+}
+
+export function TeamList(props: { focused: boolean; onSelect: (index: number) => void; onChange?: (index: number) => void }) {
+  const unified = createMemo(() => getUnifiedTeams())
+
   const options = createMemo(() =>
-    state.teams.map((team) => ({
-      name: `${statusIcon(team.meta.status)} ${team.dir}`,
-      description: `${teamTypeLabel(team.meta.type)} | ${team.tasks.length} tasks`,
+    unified().map((entry) => ({
+      name: teamOptionName(entry),
+      description: teamOptionDesc(entry),
     }))
   )
+
+  const hasLive = createMemo(() => state.liveTeams.length > 0)
 
   return (
     <box
@@ -28,6 +52,11 @@ export function TeamList(props: { focused: boolean; onSelect: (index: number) =>
         <text bold fg={colors.cyan}>
           Teams
         </text>
+        {hasLive() && (
+          <text bold fg={colors.green}>
+            {" "}LIVE
+          </text>
+        )}
       </box>
       <select
         options={options()}
@@ -40,6 +69,7 @@ export function TeamList(props: { focused: boolean; onSelect: (index: number) =>
         width="100%"
         flexGrow={1}
         onSelect={(index: number) => props.onSelect(index)}
+        onChange={(index: number) => props.onChange?.(index)}
       />
     </box>
   )

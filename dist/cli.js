@@ -2051,6 +2051,7 @@ function produce(fn) {
 // src/data/store.ts
 var [state, setState] = createStore({
   teams: [],
+  liveTeams: [],
   selectedTeamIndex: 0,
   selectedTaskIndex: 0,
   viewMode: "teams",
@@ -2083,33 +2084,83 @@ function updateTeam(dirName, team) {
 function setWatchPath(path) {
   setState("watchPath", path);
 }
+function getUnifiedTeams() {
+  const entries = [];
+  for (const lt of state.liveTeams) {
+    entries.push({ kind: "live", team: lt });
+  }
+  for (const dt of state.teams) {
+    entries.push({ kind: "docs", team: dt });
+  }
+  return entries;
+}
 function selectTeam(index) {
+  const totalTeams = state.liveTeams.length + state.teams.length;
   setState(produce((s) => {
-    s.selectedTeamIndex = Math.max(0, Math.min(index, s.teams.length - 1));
+    s.selectedTeamIndex = Math.max(0, Math.min(index, totalTeams - 1));
     s.selectedTaskIndex = 0;
   }));
 }
 function selectTask(index) {
-  const team = state.teams[state.selectedTeamIndex];
-  if (!team)
+  const unified = getUnifiedTeams();
+  const entry = unified[state.selectedTeamIndex];
+  if (!entry)
     return;
-  setState("selectedTaskIndex", Math.max(0, Math.min(index, team.tasks.length - 1)));
+  const taskCount = entry.kind === "live" ? entry.team.tasks.length : entry.team.tasks.length;
+  setState("selectedTaskIndex", Math.max(0, Math.min(index, taskCount - 1)));
 }
 function setViewMode(mode) {
   setState("viewMode", mode);
 }
+function setLiveTeams(liveTeams) {
+  setState("liveTeams", liveTeams);
+  setState("lastUpdate", new Date);
+}
+function updateLiveTeam(dirName, tasks, displayName, config) {
+  setState(produce((s) => {
+    const idx = s.liveTeams.findIndex((t) => t.dirName === dirName);
+    const team = { dirName, displayName, tasks, config };
+    if (idx >= 0) {
+      s.liveTeams[idx] = team;
+    } else {
+      s.liveTeams.push(team);
+      s.liveTeams.sort((a, b) => a.dirName.localeCompare(b.dirName, undefined, { numeric: true, sensitivity: "base" }));
+    }
+    s.lastUpdate = new Date;
+  }));
+}
 
 // src/components/TeamList.tsx
-function statusIcon(status) {
-  if (status === "completed")
-    return "\u2713";
-  return "\u25CB";
+function teamOptionName(entry) {
+  if (entry.kind === "live") {
+    const t2 = entry.team;
+    const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
+    const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
+    const total = t2.tasks.length;
+    const prefix = inProgress > 0 ? "\u25B6" : completed === total && total > 0 ? "\u2713" : "\u25CF";
+    return `${prefix} ${t2.displayName}`;
+  }
+  const t = entry.team;
+  const icon = t.meta.status === "completed" ? "\u2713" : "\u25CB";
+  return `${icon} ${t.dir}`;
+}
+function teamOptionDesc(entry) {
+  if (entry.kind === "live") {
+    const t2 = entry.team;
+    const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
+    const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
+    return `LIVE | ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
+  }
+  const t = entry.team;
+  return `${teamTypeLabel(t.meta.type)} | ${t.tasks.length} tasks`;
 }
 function TeamList(props) {
-  const options = createMemo(() => state.teams.map((team) => ({
-    name: `${statusIcon(team.meta.status)} ${team.dir}`,
-    description: `${teamTypeLabel(team.meta.type)} | ${team.tasks.length} tasks`
+  const unified = createMemo(() => getUnifiedTeams());
+  const options = createMemo(() => unified().map((entry) => ({
+    name: teamOptionName(entry),
+    description: teamOptionDesc(entry)
   })));
+  const hasLive = createMemo(() => state.liveTeams.length > 0);
   return (() => {
     var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$5 = createElement("select");
     insertNode(_el$, _el$2);
@@ -2125,6 +2176,16 @@ function TeamList(props) {
     });
     insertNode(_el$3, createTextNode(`Teams`));
     setProp(_el$3, "bold", true);
+    insert(_el$2, (() => {
+      var _c$ = memo2(() => !!hasLive());
+      return () => _c$() && (() => {
+        var _el$6 = createElement("text"), _el$7 = createTextNode(` LIVE`);
+        insertNode(_el$6, _el$7);
+        setProp(_el$6, "bold", true);
+        effect((_$p) => setProp(_el$6, "fg", colors.green, _$p));
+        return _el$6;
+      })();
+    })(), null);
     setProp(_el$5, "width", "100%");
     setProp(_el$5, "flexGrow", 1);
     setProp(_el$5, "onSelect", (index) => props.onSelect(index));
@@ -2159,27 +2220,94 @@ function TeamList(props) {
 }
 
 // src/components/TaskList.tsx
+function statusBadge(status) {
+  switch (status) {
+    case "in_progress":
+      return "\u25B6";
+    case "completed":
+      return "\u2713";
+    case "pending":
+    default:
+      return "\u25CF";
+  }
+}
+function extractRolePrefix(subject) {
+  const match = subject.match(/^\[([^\]]+)\]/);
+  return match ? match[1] : undefined;
+}
+function resolveOwner(task) {
+  return task.owner || extractRolePrefix(task.subject) || `#${task.id}`;
+}
+function liveTaskDesc(task) {
+  const owner = resolveOwner(task);
+  const blockedTag = task.blockedBy.length > 0 ? " [BLOCKED]" : "";
+  if (task.status === "in_progress" && task.activeForm) {
+    return `${task.activeForm} | ${owner}${blockedTag}`;
+  }
+  return `${owner}${blockedTag}`;
+}
+function liveTaskName(task) {
+  const badge = statusBadge(task.status);
+  const dimPrefix = task.blockedBy.length > 0 && task.status === "pending" ? "~ " : "";
+  return `${dimPrefix}${badge} ${task.subject}`;
+}
 function TaskList(props) {
-  const team = createMemo(() => state.teams[state.selectedTeamIndex]);
+  const entry = createMemo(() => {
+    const unified = getUnifiedTeams();
+    return unified[state.selectedTeamIndex];
+  });
   const options = createMemo(() => {
-    const t = team();
-    if (!t)
+    const e = entry();
+    if (!e)
       return [];
-    return t.tasks.map((task) => ({
+    if (e.kind === "live") {
+      return e.team.tasks.map((task) => ({
+        name: liveTaskName(task),
+        description: liveTaskDesc(task)
+      }));
+    }
+    return e.team.tasks.map((task) => ({
       name: task.title,
       description: task.owner || task.id
     }));
   });
+  const headerName = createMemo(() => {
+    const e = entry();
+    if (!e)
+      return "\u2014";
+    return e.kind === "live" ? e.team.displayName : e.team.dir;
+  });
+  const headerColor = createMemo(() => {
+    const e = entry();
+    if (!e)
+      return colors.fgDark;
+    if (e.kind === "live")
+      return colors.green;
+    return teamTypeColors[e.team.meta.type || "unknown"];
+  });
   const headerText = createMemo(() => {
-    const t = team();
-    if (!t)
+    const e = entry();
+    if (!e)
       return "No team selected";
+    if (e.kind === "live") {
+      const t2 = e.team;
+      const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
+      const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
+      return `LIVE | ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
+    }
+    const t = e.team;
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`;
   });
+  const memberRoster = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "live" || !e.team.config)
+      return "";
+    return e.team.config.members.map((m) => m.name).join(" | ");
+  });
   return (() => {
-    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$4 = createElement("box"), _el$5 = createElement("text");
+    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$7 = createElement("box"), _el$8 = createElement("text");
     insertNode(_el$, _el$2);
-    insertNode(_el$, _el$4);
+    insertNode(_el$, _el$7);
     setProp(_el$, "flexDirection", "column");
     setProp(_el$, "borderStyle", "single");
     setProp(_el$, "flexGrow", 2);
@@ -2190,42 +2318,70 @@ function TaskList(props) {
       left: 1
     });
     setProp(_el$3, "bold", true);
-    insert(_el$3, () => team()?.dir || "\u2014");
-    insertNode(_el$4, _el$5);
-    setProp(_el$4, "height", 1);
-    setProp(_el$4, "padding", {
+    insert(_el$3, headerName);
+    insert(_el$2, createComponent2(Show, {
+      get when() {
+        return entry()?.kind === "live";
+      },
+      get children() {
+        var _el$4 = createElement("text"), _el$5 = createTextNode(` LIVE`);
+        insertNode(_el$4, _el$5);
+        setProp(_el$4, "bold", true);
+        effect((_$p) => setProp(_el$4, "fg", colors.green, _$p));
+        return _el$4;
+      }
+    }), null);
+    insertNode(_el$7, _el$8);
+    setProp(_el$7, "height", 1);
+    setProp(_el$7, "padding", {
       left: 1
     });
-    insert(_el$5, headerText);
+    insert(_el$8, headerText);
+    insert(_el$, createComponent2(Show, {
+      get when() {
+        return memberRoster();
+      },
+      get children() {
+        var _el$9 = createElement("box"), _el$0 = createElement("text");
+        insertNode(_el$9, _el$0);
+        setProp(_el$9, "height", 1);
+        setProp(_el$9, "padding", {
+          left: 1
+        });
+        insert(_el$0, memberRoster);
+        effect((_$p) => setProp(_el$0, "fg", colors.purple, _$p));
+        return _el$9;
+      }
+    }), null);
     insert(_el$, createComponent2(Show, {
       get when() {
         return options().length > 0;
       },
       get fallback() {
         return (() => {
-          var _el$7 = createElement("box"), _el$8 = createElement("text");
-          insertNode(_el$7, _el$8);
-          setProp(_el$7, "padding", 1);
-          insertNode(_el$8, createTextNode(`No tasks found`));
-          effect((_$p) => setProp(_el$8, "fg", colors.fgDark, _$p));
-          return _el$7;
+          var _el$10 = createElement("box"), _el$11 = createElement("text");
+          insertNode(_el$10, _el$11);
+          setProp(_el$10, "padding", 1);
+          insertNode(_el$11, createTextNode(`No tasks found`));
+          effect((_$p) => setProp(_el$11, "fg", colors.fgDark, _$p));
+          return _el$10;
         })();
       },
       get children() {
-        var _el$6 = createElement("select");
-        setProp(_el$6, "width", "100%");
-        setProp(_el$6, "flexGrow", 1);
-        setProp(_el$6, "onSelect", (index) => props.onSelect(index));
-        setProp(_el$6, "onChange", (index) => props.onChange?.(index));
+        var _el$1 = createElement("select");
+        setProp(_el$1, "width", "100%");
+        setProp(_el$1, "flexGrow", 1);
+        setProp(_el$1, "onSelect", (index) => props.onSelect(index));
+        setProp(_el$1, "onChange", (index) => props.onChange?.(index));
         effect((_p$) => {
           var _v$ = options(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
-          _v$ !== _p$.e && (_p$.e = setProp(_el$6, "options", _v$, _p$.e));
-          _v$2 !== _p$.t && (_p$.t = setProp(_el$6, "focused", _v$2, _p$.t));
-          _v$3 !== _p$.a && (_p$.a = setProp(_el$6, "backgroundColor", _v$3, _p$.a));
-          _v$4 !== _p$.o && (_p$.o = setProp(_el$6, "selectedBackgroundColor", _v$4, _p$.o));
-          _v$5 !== _p$.i && (_p$.i = setProp(_el$6, "selectedTextColor", _v$5, _p$.i));
-          _v$6 !== _p$.n && (_p$.n = setProp(_el$6, "textColor", _v$6, _p$.n));
-          _v$7 !== _p$.s && (_p$.s = setProp(_el$6, "descriptionColor", _v$7, _p$.s));
+          _v$ !== _p$.e && (_p$.e = setProp(_el$1, "options", _v$, _p$.e));
+          _v$2 !== _p$.t && (_p$.t = setProp(_el$1, "focused", _v$2, _p$.t));
+          _v$3 !== _p$.a && (_p$.a = setProp(_el$1, "backgroundColor", _v$3, _p$.a));
+          _v$4 !== _p$.o && (_p$.o = setProp(_el$1, "selectedBackgroundColor", _v$4, _p$.o));
+          _v$5 !== _p$.i && (_p$.i = setProp(_el$1, "selectedTextColor", _v$5, _p$.i));
+          _v$6 !== _p$.n && (_p$.n = setProp(_el$1, "textColor", _v$6, _p$.n));
+          _v$7 !== _p$.s && (_p$.s = setProp(_el$1, "descriptionColor", _v$7, _p$.s));
           return _p$;
         }, {
           e: undefined,
@@ -2236,15 +2392,15 @@ function TaskList(props) {
           n: undefined,
           s: undefined
         });
-        return _el$6;
+        return _el$1;
       }
     }), null);
     effect((_p$) => {
-      var _v$8 = props.focused ? colors.blue : colors.border, _v$9 = colors.bgDark, _v$0 = teamTypeColors[team()?.meta.type || "unknown"], _v$1 = colors.fgMuted;
+      var _v$8 = props.focused ? colors.blue : colors.border, _v$9 = colors.bgDark, _v$0 = headerColor(), _v$1 = colors.fgMuted;
       _v$8 !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$8, _p$.e));
       _v$9 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$9, _p$.t));
       _v$0 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$0, _p$.a));
-      _v$1 !== _p$.o && (_p$.o = setProp(_el$5, "fg", _v$1, _p$.o));
+      _v$1 !== _p$.o && (_p$.o = setProp(_el$8, "fg", _v$1, _p$.o));
       return _p$;
     }, {
       e: undefined,
@@ -2257,13 +2413,84 @@ function TaskList(props) {
 }
 
 // src/components/TaskDetail.tsx
+function statusLabel(status) {
+  switch (status) {
+    case "in_progress":
+      return "\u25B6 In Progress";
+    case "completed":
+      return "\u2713 Completed";
+    case "pending":
+    default:
+      return "\u25CF Pending";
+  }
+}
+function ownerColor(owner, config) {
+  if (!owner || !config)
+    return colors.fg;
+  const member = config.members.find((m) => m.name === owner);
+  return member?.color || colors.fg;
+}
+function depStr(label, ids) {
+  if (ids.length === 0)
+    return "";
+  return `${label}: ${ids.map((id) => `#${id}`).join(", ")}`;
+}
 function TaskDetail() {
-  const team = createMemo(() => state.teams[state.selectedTeamIndex]);
-  const task = createMemo(() => {
-    const t = team();
-    if (!t)
+  const entry = createMemo(() => {
+    const unified = getUnifiedTeams();
+    return unified[state.selectedTeamIndex];
+  });
+  const liveTask = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "live")
       return;
-    return t.tasks[state.selectedTaskIndex];
+    return e.team.tasks[state.selectedTaskIndex];
+  });
+  const docsTask = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "docs")
+      return;
+    return e.team.tasks[state.selectedTaskIndex];
+  });
+  const teamConfig = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "live")
+      return;
+    return e.team.config;
+  });
+  const headerColor = createMemo(() => {
+    const e = entry();
+    if (!e)
+      return colors.fgDark;
+    if (e.kind === "live")
+      return colors.green;
+    return teamTypeColors[e.team.meta.type || "unknown"];
+  });
+  const title = createMemo(() => {
+    const lt = liveTask();
+    if (lt)
+      return lt.subject;
+    const dt = docsTask();
+    if (dt)
+      return dt.title;
+    return "No task selected";
+  });
+  const depsLine = createMemo(() => {
+    const lt = liveTask();
+    if (!lt)
+      return "";
+    const parts = [];
+    const blocksStr = depStr("Blocks", lt.blocks);
+    const blockedByStr = depStr("Blocked by", lt.blockedBy);
+    if (blocksStr)
+      parts.push(blocksStr);
+    if (blockedByStr)
+      parts.push(blockedByStr);
+    return parts.join(" | ");
+  });
+  const ownerFg = createMemo(() => {
+    const lt = liveTask();
+    return ownerColor(lt?.owner, teamConfig());
   });
   return (() => {
     var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text");
@@ -2278,55 +2505,157 @@ function TaskDetail() {
       left: 1
     });
     setProp(_el$3, "bold", true);
-    insert(_el$3, () => task()?.title || "No task selected");
-    insert(_el$, createComponent2(Show, {
-      get when() {
-        return task();
-      },
-      get fallback() {
-        return (() => {
-          var _el$8 = createElement("box"), _el$9 = createElement("text");
-          insertNode(_el$8, _el$9);
-          setProp(_el$8, "padding", 1);
-          insertNode(_el$9, createTextNode(`Select a task to view details`));
-          effect((_$p) => setProp(_el$9, "fg", colors.fgDark, _$p));
-          return _el$8;
-        })();
-      },
+    insert(_el$3, title);
+    insert(_el$, createComponent2(Switch, {
       get children() {
-        return [(() => {
-          var _el$4 = createElement("box"), _el$5 = createElement("text");
-          insertNode(_el$4, _el$5);
-          setProp(_el$4, "padding", {
-            left: 1,
-            right: 1
-          });
-          insert(_el$5, () => task().filename, null);
-          insert(_el$5, (() => {
-            var _c$ = memo2(() => !!task().owner);
-            return () => _c$() ? ` | ${task().owner}` : "";
-          })(), null);
-          insert(_el$5, (() => {
-            var _c$2 = memo2(() => !!task().date);
-            return () => _c$2() ? ` | ${task().date}` : "";
-          })(), null);
-          effect((_$p) => setProp(_el$5, "fg", colors.fgMuted, _$p));
-          return _el$4;
-        })(), (() => {
-          var _el$6 = createElement("scrollbox"), _el$7 = createElement("markdown");
-          insertNode(_el$6, _el$7);
-          setProp(_el$6, "flexGrow", 1);
-          setProp(_el$6, "width", "100%");
-          insert(_el$7, () => task().content);
-          return _el$6;
-        })()];
+        return [createComponent2(Match, {
+          get when() {
+            return liveTask();
+          },
+          get children() {
+            return [(() => {
+              var _el$4 = createElement("box"), _el$5 = createElement("text"), _el$7 = createElement("text");
+              insertNode(_el$4, _el$5);
+              insertNode(_el$4, _el$7);
+              setProp(_el$4, "padding", {
+                left: 1,
+                right: 1
+              });
+              insert(_el$5, () => statusLabel(liveTask().status));
+              insert(_el$4, createComponent2(Show, {
+                get when() {
+                  return liveTask().owner;
+                },
+                get children() {
+                  var _el$6 = createElement("text");
+                  insert(_el$6, () => ` | ${liveTask().owner}`);
+                  effect((_$p) => setProp(_el$6, "fg", ownerFg(), _$p));
+                  return _el$6;
+                }
+              }), _el$7);
+              insert(_el$7, () => ` | #${liveTask().id}`);
+              effect((_p$) => {
+                var _v$ = colors.fgMuted, _v$2 = colors.fgMuted;
+                _v$ !== _p$.e && (_p$.e = setProp(_el$5, "fg", _v$, _p$.e));
+                _v$2 !== _p$.t && (_p$.t = setProp(_el$7, "fg", _v$2, _p$.t));
+                return _p$;
+              }, {
+                e: undefined,
+                t: undefined
+              });
+              return _el$4;
+            })(), createComponent2(Show, {
+              get when() {
+                return memo2(() => liveTask().status === "in_progress")() && liveTask().activeForm;
+              },
+              get children() {
+                var _el$8 = createElement("box"), _el$9 = createElement("text");
+                insertNode(_el$8, _el$9);
+                setProp(_el$8, "padding", {
+                  left: 1,
+                  right: 1
+                });
+                insert(_el$9, () => liveTask().activeForm);
+                effect((_$p) => setProp(_el$9, "fg", colors.yellow, _$p));
+                return _el$8;
+              }
+            }), createComponent2(Show, {
+              get when() {
+                return depsLine();
+              },
+              get children() {
+                var _el$0 = createElement("box"), _el$1 = createElement("text");
+                insertNode(_el$0, _el$1);
+                setProp(_el$0, "padding", {
+                  left: 1,
+                  right: 1
+                });
+                insert(_el$1, depsLine);
+                effect((_$p) => setProp(_el$1, "fg", colors.orange, _$p));
+                return _el$0;
+              }
+            }), createComponent2(Show, {
+              get when() {
+                return liveTask().description;
+              },
+              get children() {
+                var _el$10 = createElement("scrollbox"), _el$11 = createElement("box"), _el$12 = createElement("text");
+                insertNode(_el$10, _el$11);
+                setProp(_el$10, "flexGrow", 1);
+                setProp(_el$10, "width", "100%");
+                insertNode(_el$11, _el$12);
+                setProp(_el$11, "padding", {
+                  left: 1,
+                  right: 1
+                });
+                insert(_el$12, () => liveTask().description);
+                effect((_$p) => setProp(_el$12, "fg", colors.fg, _$p));
+                return _el$10;
+              }
+            }), createComponent2(Show, {
+              get when() {
+                return !liveTask().description;
+              },
+              get children() {
+                var _el$13 = createElement("box"), _el$14 = createElement("text");
+                insertNode(_el$13, _el$14);
+                setProp(_el$13, "padding", 1);
+                insertNode(_el$14, createTextNode(`No description`));
+                effect((_$p) => setProp(_el$14, "fg", colors.fgDark, _$p));
+                return _el$13;
+              }
+            })];
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return docsTask();
+          },
+          get children() {
+            return [(() => {
+              var _el$16 = createElement("box"), _el$17 = createElement("text");
+              insertNode(_el$16, _el$17);
+              setProp(_el$16, "padding", {
+                left: 1,
+                right: 1
+              });
+              insert(_el$17, () => docsTask().filename, null);
+              insert(_el$17, (() => {
+                var _c$ = memo2(() => !!docsTask().owner);
+                return () => _c$() ? ` | ${docsTask().owner}` : "";
+              })(), null);
+              insert(_el$17, (() => {
+                var _c$2 = memo2(() => !!docsTask().date);
+                return () => _c$2() ? ` | ${docsTask().date}` : "";
+              })(), null);
+              effect((_$p) => setProp(_el$17, "fg", colors.fgMuted, _$p));
+              return _el$16;
+            })(), (() => {
+              var _el$18 = createElement("scrollbox"), _el$19 = createElement("markdown");
+              insertNode(_el$18, _el$19);
+              setProp(_el$18, "flexGrow", 1);
+              setProp(_el$18, "width", "100%");
+              insert(_el$19, () => docsTask().content);
+              return _el$18;
+            })()];
+          }
+        }), createComponent2(Match, {
+          when: true,
+          get children() {
+            var _el$20 = createElement("box"), _el$21 = createElement("text");
+            insertNode(_el$20, _el$21);
+            setProp(_el$20, "padding", 1);
+            insertNode(_el$21, createTextNode(`Select a task to view details`));
+            effect((_$p) => setProp(_el$21, "fg", colors.fgDark, _$p));
+            return _el$20;
+          }
+        })];
       }
     }), null);
     effect((_p$) => {
-      var _v$ = colors.blue, _v$2 = colors.bgDark, _v$3 = teamTypeColors[team()?.meta.type || "unknown"];
-      _v$ !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$, _p$.e));
-      _v$2 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$2, _p$.t));
-      _v$3 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$3, _p$.a));
+      var _v$3 = colors.blue, _v$4 = colors.bgDark, _v$5 = headerColor();
+      _v$3 !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$3, _p$.e));
+      _v$4 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$4, _p$.t));
+      _v$5 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$5, _p$.a));
       return _p$;
     }, {
       e: undefined,
@@ -2356,7 +2685,7 @@ function StatusBar(props) {
     return ".../" + parts.slice(-2).join("/");
   });
   return (() => {
-    var _el$ = createElement("box"), _el$2 = createElement("text"), _el$3 = createTextNode(` | `), _el$4 = createTextNode(` teams | `), _el$5 = createTextNode(` | focus:`), _el$6 = createTextNode(` | `);
+    var _el$ = createElement("box"), _el$2 = createElement("text"), _el$3 = createTextNode(` | `), _el$4 = createTextNode(` teams`), _el$5 = createTextNode(` | `), _el$6 = createTextNode(` | focus:`), _el$7 = createTextNode(` | `);
     insertNode(_el$, _el$2);
     setProp(_el$, "width", "100%");
     setProp(_el$, "height", 1);
@@ -2369,10 +2698,15 @@ function StatusBar(props) {
     insertNode(_el$2, _el$4);
     insertNode(_el$2, _el$5);
     insertNode(_el$2, _el$6);
+    insertNode(_el$2, _el$7);
     insert(_el$2, shortPath, _el$3);
-    insert(_el$2, () => state.teams.length, _el$4);
-    insert(_el$2, timeStr, _el$5);
-    insert(_el$2, () => props.panelFocus || "?", _el$6);
+    insert(_el$2, () => state.teams.length + state.liveTeams.length, _el$4);
+    insert(_el$2, (() => {
+      var _c$ = memo2(() => state.liveTeams.length > 0);
+      return () => _c$() ? ` (${state.liveTeams.length} live)` : "";
+    })(), _el$5);
+    insert(_el$2, timeStr, _el$6);
+    insert(_el$2, () => props.panelFocus || "?", _el$7);
     insert(_el$2, () => props.lastKey || "j/k:nav enter:select q:quit", null);
     effect((_p$) => {
       var _v$ = colors.bgDark, _v$2 = colors.fgMuted;
@@ -2624,9 +2958,88 @@ async function parseAllTeams(watchPath) {
   return teams;
 }
 
+// src/data/json-parser.ts
+import { readFile as readFile2, readdir as readdir2, mkdir as mkdir2 } from "fs/promises";
+import { join as join2, basename as basename2 } from "path";
+var VALID_STATUSES = new Set(["pending", "in_progress", "completed"]);
+function asString(val) {
+  return typeof val === "string" ? val : undefined;
+}
+function asStringArray(val) {
+  if (!Array.isArray(val))
+    return [];
+  return val.filter((v) => typeof v === "string");
+}
+function parseJsonTask(raw, fileId) {
+  try {
+    const data = JSON.parse(raw);
+    if (typeof data !== "object" || data === null)
+      return null;
+    const subject = asString(data.subject);
+    if (!subject)
+      return null;
+    const status = VALID_STATUSES.has(data.status) ? data.status : "pending";
+    return {
+      id: asString(data.id) || fileId,
+      subject,
+      description: asString(data.description),
+      activeForm: asString(data.activeForm),
+      owner: asString(data.owner),
+      status,
+      blocks: asStringArray(data.blocks),
+      blockedBy: asStringArray(data.blockedBy)
+    };
+  } catch {
+    return null;
+  }
+}
+async function parseTaskFile(filePath) {
+  try {
+    const raw = await readFile2(filePath, "utf-8");
+    const fileId = basename2(filePath, ".json");
+    return parseJsonTask(raw, fileId);
+  } catch {
+    return null;
+  }
+}
+function naturalSort2(a, b) {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+async function parseTeamTasks(teamDirPath) {
+  try {
+    const entries = await readdir2(teamDirPath);
+    const jsonFiles = entries.filter((f) => f.endsWith(".json")).sort(naturalSort2);
+    const results = await Promise.all(jsonFiles.map((f) => parseTaskFile(join2(teamDirPath, f))));
+    return results.filter((t) => t !== null);
+  } catch {
+    return [];
+  }
+}
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUUID(s) {
+  return UUID_RE.test(s);
+}
+function shortUUID(s) {
+  return s.slice(0, 8);
+}
+async function parseAllLiveTeams(tasksPath) {
+  await mkdir2(tasksPath, { recursive: true });
+  const entries = await readdir2(tasksPath, { withFileTypes: true });
+  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort(naturalSort2);
+  const teams = await Promise.all(dirs.map(async (dirName) => {
+    const tasks = await parseTeamTasks(join2(tasksPath, dirName));
+    return {
+      dirName,
+      displayName: isUUID(dirName) ? shortUUID(dirName) : dirName,
+      tasks
+    };
+  }));
+  return teams;
+}
+
 // src/data/watcher.ts
 import { watch } from "chokidar";
-import { join as join2, relative, sep } from "path";
+import { join as join3, relative, sep } from "path";
 var debounceTimer = null;
 var pendingDirs = new Set;
 function getTeamDir(watchPath, changedPath) {
@@ -2660,8 +3073,157 @@ function startFileWatcher(watchPath) {
       pendingDirs.clear();
       for (const dir of dirs) {
         try {
-          const team = await parseTeam(join2(watchPath, dir));
+          const team = await parseTeam(join3(watchPath, dir));
           updateTeam(dir, team);
+        } catch {}
+      }
+    }, 200);
+  };
+  watcher.on("add", scheduleUpdate);
+  watcher.on("change", scheduleUpdate);
+  watcher.on("unlink", scheduleUpdate);
+  return watcher;
+}
+
+// src/data/json-watcher.ts
+import { watch as watch2 } from "chokidar";
+import { join as join5, relative as relative2, sep as sep2 } from "path";
+import { mkdir as mkdir3 } from "fs/promises";
+
+// src/data/config-reader.ts
+import { readdir as readdir3, readFile as readFile3 } from "fs/promises";
+import { join as join4 } from "path";
+import { homedir } from "os";
+function asString2(val) {
+  return typeof val === "string" ? val : undefined;
+}
+function parseMember(m) {
+  if (typeof m !== "object" || m === null)
+    return null;
+  const obj = m;
+  const name = asString2(obj.name);
+  if (!name)
+    return null;
+  return {
+    name,
+    agentType: asString2(obj.agentType) || "unknown",
+    model: asString2(obj.model) || "unknown",
+    color: asString2(obj.color) || "white"
+  };
+}
+function parseConfig(raw) {
+  try {
+    const data = JSON.parse(raw);
+    if (typeof data !== "object" || data === null)
+      return null;
+    const name = asString2(data.name);
+    if (!name)
+      return null;
+    const members = [];
+    if (Array.isArray(data.members)) {
+      for (const m of data.members) {
+        const parsed = parseMember(m);
+        if (parsed)
+          members.push(parsed);
+      }
+    }
+    return {
+      name,
+      description: asString2(data.description) || "",
+      members
+    };
+  } catch {
+    return null;
+  }
+}
+function getTeamsDir() {
+  return join4(homedir(), ".claude", "teams");
+}
+function getTasksDir() {
+  return join4(homedir(), ".claude", "tasks");
+}
+async function scanTeamConfigs() {
+  const configs = new Map;
+  const teamsDir = getTeamsDir();
+  try {
+    const entries = await readdir3(teamsDir, { withFileTypes: true });
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    await Promise.all(dirs.map(async (dirName) => {
+      try {
+        const raw = await readFile3(join4(teamsDir, dirName, "config.json"), "utf-8");
+        const config = parseConfig(raw);
+        if (config) {
+          configs.set(config.name, config);
+        }
+      } catch {}
+    }));
+  } catch {}
+  return configs;
+}
+var UUID_RE2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUUID2(s) {
+  return UUID_RE2.test(s);
+}
+function resolveDisplayName(dirName, configs) {
+  const config = configs.get(dirName);
+  if (config)
+    return config.name;
+  if (isUUID2(dirName))
+    return dirName.slice(0, 8);
+  return dirName;
+}
+
+// src/data/json-watcher.ts
+var debounceTimer2 = null;
+var pendingDirs2 = new Set;
+var configCache = new Map;
+function getTeamDir2(watchPath, changedPath) {
+  const rel = relative2(watchPath, changedPath);
+  const parts = rel.split(sep2);
+  if (parts.length >= 2 && parts[0] !== "." && parts[0] !== "..") {
+    return parts[0];
+  }
+  return null;
+}
+var IGNORED_EXTENSIONS = new Set([".lock", ".highwatermark"]);
+function shouldIgnore(filePath) {
+  for (const ext of IGNORED_EXTENSIONS) {
+    if (filePath.endsWith(ext))
+      return true;
+  }
+  return !filePath.endsWith(".json");
+}
+function setConfigCache(configs) {
+  configCache = configs;
+}
+async function startJsonWatcher(tasksPath) {
+  await mkdir3(tasksPath, { recursive: true });
+  const watcher = watch2(tasksPath, {
+    ignoreInitial: true,
+    depth: 1,
+    awaitWriteFinish: {
+      stabilityThreshold: 100,
+      pollInterval: 50
+    }
+  });
+  const scheduleUpdate = (filePath) => {
+    if (shouldIgnore(filePath))
+      return;
+    const teamDir = getTeamDir2(tasksPath, filePath);
+    if (!teamDir)
+      return;
+    pendingDirs2.add(teamDir);
+    if (debounceTimer2)
+      clearTimeout(debounceTimer2);
+    debounceTimer2 = setTimeout(async () => {
+      const dirs = [...pendingDirs2];
+      pendingDirs2.clear();
+      for (const dir of dirs) {
+        try {
+          const tasks = await parseTeamTasks(join5(tasksPath, dir));
+          const displayName = resolveDisplayName(dir, configCache);
+          const config = configCache.get(dir);
+          updateLiveTeam(dir, tasks, displayName, config);
         } catch {}
       }
     }, 200);
@@ -2674,10 +3236,21 @@ function startFileWatcher(watchPath) {
 
 // index.tsx
 var watchPath = resolve(process.argv[2] || "docs/teams");
-var teams = await parseAllTeams(watchPath);
+var tasksPath = getTasksDir();
+var [teams, configs, liveTeams] = await Promise.all([parseAllTeams(watchPath), scanTeamConfigs(), parseAllLiveTeams(tasksPath)]);
+for (const lt of liveTeams) {
+  const config = configs.get(lt.dirName);
+  if (config) {
+    lt.displayName = config.name;
+    lt.config = config;
+  }
+}
 setWatchPath(watchPath);
 setTeams(teams);
+setLiveTeams(liveTeams);
+setConfigCache(configs);
 startFileWatcher(watchPath);
+startJsonWatcher(tasksPath);
 render(() => createComponent2(App, {
   watchPath
 }));
