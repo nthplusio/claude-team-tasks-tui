@@ -2245,26 +2245,14 @@ function liveTaskName(task) {
   const dimPrefix = task.blockedBy.length > 0 && task.status === "pending" ? "~ " : "";
   return `${dimPrefix}${badge} ${task.subject}`;
 }
+var COLUMN_LABELS = ["PENDING", "ACTIVE", "DONE"];
+var COLUMN_COLORS = [colors.fgMuted, colors.yellow, colors.green];
 function TaskList(props) {
   const entry = createMemo(() => {
     const unified = getUnifiedTeams();
     return unified[state.selectedTeamIndex];
   });
-  const options = createMemo(() => {
-    const e = entry();
-    if (!e)
-      return [];
-    if (e.kind === "live") {
-      return e.team.tasks.map((task) => ({
-        name: liveTaskName(task),
-        description: liveTaskDesc(task)
-      }));
-    }
-    return e.team.tasks.map((task) => ({
-      name: task.title,
-      description: task.owner || task.id
-    }));
-  });
+  const isLive = createMemo(() => entry()?.kind === "live");
   const headerName = createMemo(() => {
     const e = entry();
     if (!e)
@@ -2297,6 +2285,123 @@ function TaskList(props) {
     if (!e || e.kind !== "live" || !e.team.config)
       return "";
     return e.team.config.members.map((m) => m.name).join(" | ");
+  });
+  const groupedTasks = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "live")
+      return [[], [], []];
+    const pending = [];
+    const active = [];
+    const done = [];
+    e.team.tasks.forEach((task, i) => {
+      const gt = {
+        task,
+        flatIndex: i
+      };
+      switch (task.status) {
+        case "pending":
+          pending.push(gt);
+          break;
+        case "in_progress":
+          active.push(gt);
+          break;
+        case "completed":
+          done.push(gt);
+          break;
+      }
+    });
+    return [pending, active, done];
+  });
+  const columnOptions = createMemo(() => {
+    const groups = groupedTasks();
+    return groups.map((col) => col.map((gt) => ({
+      name: liveTaskName(gt.task),
+      description: liveTaskDesc(gt.task)
+    })));
+  });
+  const [kanbanCol, setKanbanCol] = createSignal(0);
+  const [colRows, setColRows] = createSignal([0, 0, 0]);
+  createEffect(() => {
+    state.selectedTeamIndex;
+    setKanbanCol(0);
+    setColRows([0, 0, 0]);
+  });
+  createEffect(() => {
+    const groups = groupedTasks();
+    const rows = colRows();
+    const col = kanbanCol();
+    const clamped = rows.map((r, i) => {
+      const len = groups[i].length;
+      return len > 0 ? Math.min(r, len - 1) : 0;
+    });
+    if (groups[col].length === 0) {
+      const nonEmpty = [0, 1, 2].filter((i) => groups[i].length > 0);
+      if (nonEmpty.length > 0) {
+        const closest = nonEmpty.reduce((a, b) => Math.abs(b - col) < Math.abs(a - col) ? b : a);
+        setKanbanCol(closest);
+      }
+    }
+    if (clamped.some((v, i) => v !== rows[i])) {
+      setColRows(clamped);
+    }
+  });
+  useKeyboard((key) => {
+    if (!props.focused || !isLive())
+      return;
+    if (key.name === "left" || key.name === "right") {
+      const groups = groupedTasks();
+      const dir = key.name === "left" ? -1 : 1;
+      const col = kanbanCol();
+      let next = col + dir;
+      while (next >= 0 && next <= 2) {
+        if (groups[next].length > 0)
+          break;
+        next += dir;
+      }
+      if (next >= 0 && next <= 2 && groups[next].length > 0) {
+        setKanbanCol(next);
+        const row = colRows()[next];
+        const flatIndex = groups[next][row]?.flatIndex;
+        if (flatIndex !== undefined) {
+          props.onChange?.(flatIndex);
+        }
+      }
+    }
+  });
+  function handleColumnSelect(colIndex) {
+    return (rowIndex) => {
+      const gt = groupedTasks()[colIndex][rowIndex];
+      if (gt) {
+        setColRows((prev) => {
+          const next = [...prev];
+          next[colIndex] = rowIndex;
+          return next;
+        });
+        props.onSelect(gt.flatIndex);
+      }
+    };
+  }
+  function handleColumnChange(colIndex) {
+    return (rowIndex) => {
+      const gt = groupedTasks()[colIndex][rowIndex];
+      if (gt) {
+        setColRows((prev) => {
+          const next = [...prev];
+          next[colIndex] = rowIndex;
+          return next;
+        });
+        props.onChange?.(gt.flatIndex);
+      }
+    };
+  }
+  const docsOptions = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "docs")
+      return [];
+    return e.team.tasks.map((task) => ({
+      name: task.title,
+      description: task.owner || task.id
+    }));
   });
   return (() => {
     var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$4 = createElement("box"), _el$5 = createElement("text");
@@ -2340,44 +2445,151 @@ function TaskList(props) {
     }), null);
     insert(_el$, createComponent2(Show, {
       get when() {
-        return options().length > 0;
-      },
-      get fallback() {
-        return (() => {
-          var _el$9 = createElement("box"), _el$0 = createElement("text");
-          insertNode(_el$9, _el$0);
-          setProp(_el$9, "padding", 1);
-          insertNode(_el$0, createTextNode(`No tasks found`));
-          effect((_$p) => setProp(_el$0, "fg", colors.fgDark, _$p));
-          return _el$9;
-        })();
+        return isLive();
       },
       get children() {
-        var _el$8 = createElement("select");
-        setProp(_el$8, "width", "100%");
-        setProp(_el$8, "flexGrow", 1);
-        setProp(_el$8, "onSelect", (index) => props.onSelect(index));
-        setProp(_el$8, "onChange", (index) => props.onChange?.(index));
-        effect((_p$) => {
-          var _v$ = options(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
-          _v$ !== _p$.e && (_p$.e = setProp(_el$8, "options", _v$, _p$.e));
-          _v$2 !== _p$.t && (_p$.t = setProp(_el$8, "focused", _v$2, _p$.t));
-          _v$3 !== _p$.a && (_p$.a = setProp(_el$8, "backgroundColor", _v$3, _p$.a));
-          _v$4 !== _p$.o && (_p$.o = setProp(_el$8, "selectedBackgroundColor", _v$4, _p$.o));
-          _v$5 !== _p$.i && (_p$.i = setProp(_el$8, "selectedTextColor", _v$5, _p$.i));
-          _v$6 !== _p$.n && (_p$.n = setProp(_el$8, "textColor", _v$6, _p$.n));
-          _v$7 !== _p$.s && (_p$.s = setProp(_el$8, "descriptionColor", _v$7, _p$.s));
-          return _p$;
-        }, {
-          e: undefined,
-          t: undefined,
-          a: undefined,
-          o: undefined,
-          i: undefined,
-          n: undefined,
-          s: undefined
+        return createComponent2(Show, {
+          get when() {
+            return groupedTasks().some((col) => col.length > 0);
+          },
+          get fallback() {
+            return (() => {
+              var _el$0 = createElement("box"), _el$1 = createElement("text");
+              insertNode(_el$0, _el$1);
+              setProp(_el$0, "padding", 1);
+              insertNode(_el$1, createTextNode(`No tasks found`));
+              effect((_$p) => setProp(_el$1, "fg", colors.fgDark, _$p));
+              return _el$0;
+            })();
+          },
+          get children() {
+            var _el$8 = createElement("box");
+            setProp(_el$8, "flexDirection", "row");
+            setProp(_el$8, "flexGrow", 1);
+            insert(_el$8, () => [0, 1, 2].map((colIndex) => (() => {
+              var _el$11 = createElement("box"), _el$12 = createElement("box"), _el$13 = createElement("text");
+              insertNode(_el$11, _el$12);
+              setProp(_el$11, "flexDirection", "column");
+              setProp(_el$11, "width", colIndex === 1 ? "34%" : "33%");
+              setProp(_el$11, "borderStyle", "single");
+              insertNode(_el$12, _el$13);
+              setProp(_el$12, "height", 1);
+              setProp(_el$12, "padding", {
+                left: 1
+              });
+              setProp(_el$13, "bold", true);
+              insert(_el$13, () => `${COLUMN_LABELS[colIndex]} (${groupedTasks()[colIndex].length})`);
+              insert(_el$11, createComponent2(Show, {
+                get when() {
+                  return columnOptions()[colIndex].length > 0;
+                },
+                get fallback() {
+                  return (() => {
+                    var _el$15 = createElement("box"), _el$16 = createElement("text");
+                    insertNode(_el$15, _el$16);
+                    setProp(_el$15, "padding", {
+                      left: 1
+                    });
+                    insertNode(_el$16, createTextNode(`\u2014`));
+                    effect((_$p) => setProp(_el$16, "fg", colors.fgDark, _$p));
+                    return _el$15;
+                  })();
+                },
+                get children() {
+                  var _el$14 = createElement("select");
+                  setProp(_el$14, "width", "100%");
+                  setProp(_el$14, "flexGrow", 1);
+                  effect((_p$) => {
+                    var _v$10 = columnOptions()[colIndex], _v$11 = props.focused && kanbanCol() === colIndex, _v$12 = colors.bg, _v$13 = colors.selection, _v$14 = colors.fg, _v$15 = colors.fgDark, _v$16 = colors.fgMuted, _v$17 = handleColumnSelect(colIndex), _v$18 = handleColumnChange(colIndex);
+                    _v$10 !== _p$.e && (_p$.e = setProp(_el$14, "options", _v$10, _p$.e));
+                    _v$11 !== _p$.t && (_p$.t = setProp(_el$14, "focused", _v$11, _p$.t));
+                    _v$12 !== _p$.a && (_p$.a = setProp(_el$14, "backgroundColor", _v$12, _p$.a));
+                    _v$13 !== _p$.o && (_p$.o = setProp(_el$14, "selectedBackgroundColor", _v$13, _p$.o));
+                    _v$14 !== _p$.i && (_p$.i = setProp(_el$14, "selectedTextColor", _v$14, _p$.i));
+                    _v$15 !== _p$.n && (_p$.n = setProp(_el$14, "textColor", _v$15, _p$.n));
+                    _v$16 !== _p$.s && (_p$.s = setProp(_el$14, "descriptionColor", _v$16, _p$.s));
+                    _v$17 !== _p$.h && (_p$.h = setProp(_el$14, "onSelect", _v$17, _p$.h));
+                    _v$18 !== _p$.r && (_p$.r = setProp(_el$14, "onChange", _v$18, _p$.r));
+                    return _p$;
+                  }, {
+                    e: undefined,
+                    t: undefined,
+                    a: undefined,
+                    o: undefined,
+                    i: undefined,
+                    n: undefined,
+                    s: undefined,
+                    h: undefined,
+                    r: undefined
+                  });
+                  return _el$14;
+                }
+              }), null);
+              effect((_p$) => {
+                var _v$19 = props.focused && kanbanCol() === colIndex ? colors.blue : colors.border, _v$20 = colors.bgDark, _v$21 = COLUMN_COLORS[colIndex];
+                _v$19 !== _p$.e && (_p$.e = setProp(_el$11, "borderColor", _v$19, _p$.e));
+                _v$20 !== _p$.t && (_p$.t = setProp(_el$12, "backgroundColor", _v$20, _p$.t));
+                _v$21 !== _p$.a && (_p$.a = setProp(_el$13, "fg", _v$21, _p$.a));
+                return _p$;
+              }, {
+                e: undefined,
+                t: undefined,
+                a: undefined
+              });
+              return _el$11;
+            })()));
+            return _el$8;
+          }
         });
-        return _el$8;
+      }
+    }), null);
+    insert(_el$, createComponent2(Show, {
+      get when() {
+        return !isLive();
+      },
+      get children() {
+        return createComponent2(Show, {
+          get when() {
+            return docsOptions().length > 0;
+          },
+          get fallback() {
+            return (() => {
+              var _el$18 = createElement("box"), _el$19 = createElement("text");
+              insertNode(_el$18, _el$19);
+              setProp(_el$18, "padding", 1);
+              insertNode(_el$19, createTextNode(`No tasks found`));
+              effect((_$p) => setProp(_el$19, "fg", colors.fgDark, _$p));
+              return _el$18;
+            })();
+          },
+          get children() {
+            var _el$9 = createElement("select");
+            setProp(_el$9, "width", "100%");
+            setProp(_el$9, "flexGrow", 1);
+            setProp(_el$9, "onSelect", (index) => props.onSelect(index));
+            setProp(_el$9, "onChange", (index) => props.onChange?.(index));
+            effect((_p$) => {
+              var _v$ = docsOptions(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
+              _v$ !== _p$.e && (_p$.e = setProp(_el$9, "options", _v$, _p$.e));
+              _v$2 !== _p$.t && (_p$.t = setProp(_el$9, "focused", _v$2, _p$.t));
+              _v$3 !== _p$.a && (_p$.a = setProp(_el$9, "backgroundColor", _v$3, _p$.a));
+              _v$4 !== _p$.o && (_p$.o = setProp(_el$9, "selectedBackgroundColor", _v$4, _p$.o));
+              _v$5 !== _p$.i && (_p$.i = setProp(_el$9, "selectedTextColor", _v$5, _p$.i));
+              _v$6 !== _p$.n && (_p$.n = setProp(_el$9, "textColor", _v$6, _p$.n));
+              _v$7 !== _p$.s && (_p$.s = setProp(_el$9, "descriptionColor", _v$7, _p$.s));
+              return _p$;
+            }, {
+              e: undefined,
+              t: undefined,
+              a: undefined,
+              o: undefined,
+              i: undefined,
+              n: undefined,
+              s: undefined
+            });
+            return _el$9;
+          }
+        });
       }
     }), null);
     effect((_p$) => {
