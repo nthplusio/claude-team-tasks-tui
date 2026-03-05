@@ -170,6 +170,7 @@ function TeamList(props) {
     _$setProp2(_el$5, "width", "100%");
     _$setProp2(_el$5, "flexGrow", 1);
     _$setProp2(_el$5, "onSelect", (index) => props.onSelect(index));
+    _$setProp2(_el$5, "onChange", (index) => props.onChange?.(index));
     _$effect2((_p$) => {
       var _v$ = props.focused ? colors.blue : colors.border, _v$2 = colors.bgDark, _v$3 = colors.cyan, _v$4 = options(), _v$5 = props.focused, _v$6 = colors.bg, _v$7 = colors.selection, _v$8 = colors.fg, _v$9 = colors.fgDark, _v$0 = colors.fgMuted;
       _v$ !== _p$.e && (_p$.e = _$setProp2(_el$, "borderColor", _v$, _p$.e));
@@ -266,6 +267,7 @@ function TaskList(props) {
         _$setProp3(_el$6, "width", "100%");
         _$setProp3(_el$6, "flexGrow", 1);
         _$setProp3(_el$6, "onSelect", (index) => props.onSelect(index));
+        _$setProp3(_el$6, "onChange", (index) => props.onChange?.(index));
         _$effect3((_p$) => {
           var _v$ = options(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
           _v$ !== _p$.e && (_p$.e = _$setProp3(_el$6, "options", _v$, _p$.e));
@@ -453,6 +455,9 @@ function App(props) {
   const dimensions = useTerminalDimensions();
   const isWide = createMemo5(() => dimensions().width >= 80);
   const [panelFocus, setPanelFocus] = createSignal("left");
+  function handleTeamChange(index) {
+    selectTeam(index);
+  }
   function handleTeamSelect(index) {
     selectTeam(index);
     if (isWide()) {
@@ -460,6 +465,9 @@ function App(props) {
     } else {
       setViewMode("tasks");
     }
+  }
+  function handleTaskChange(index) {
+    selectTask(index);
   }
   function handleTaskSelect(index) {
     selectTask(index);
@@ -516,14 +524,16 @@ function App(props) {
               get focused() {
                 return panelFocus() === "left";
               },
-              onSelect: handleTeamSelect
+              onSelect: handleTeamSelect,
+              onChange: handleTeamChange
             }));
             _$setProp6(_el$4, "flexGrow", 1);
             _$insert4(_el$4, _$createComponent3(TaskList, {
               get focused() {
                 return panelFocus() === "right";
               },
-              onSelect: handleTaskSelect
+              onSelect: handleTaskSelect,
+              onChange: handleTaskChange
             }));
             return _el$2;
           }
@@ -534,7 +544,8 @@ function App(props) {
           get children() {
             return _$createComponent3(TaskList, {
               focused: true,
-              onSelect: handleTaskSelect
+              onSelect: handleTaskSelect,
+              onChange: handleTaskChange
             });
           }
         }), _$createComponent3(Match, {
@@ -544,7 +555,8 @@ function App(props) {
           get children() {
             return _$createComponent3(TeamList, {
               focused: true,
-              onSelect: handleTeamSelect
+              onSelect: handleTeamSelect,
+              onChange: handleTeamChange
             });
           }
         })];
