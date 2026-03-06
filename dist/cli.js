@@ -2970,12 +2970,15 @@ function StatusBar(props) {
 }
 
 // src/data/archive.ts
-import { mkdir, rename } from "fs/promises";
+import { mkdir, cp, rm } from "fs/promises";
 import { resolve, join } from "path";
 async function archiveDocsTeam(watchPath, dirName) {
   const archivePath = resolve(watchPath, "..", "teams-archived");
   await mkdir(archivePath, { recursive: true });
-  await rename(join(watchPath, dirName), join(archivePath, dirName));
+  const src = join(watchPath, dirName);
+  const dest = join(archivePath, dirName);
+  await cp(src, dest, { recursive: true });
+  await rm(src, { recursive: true, force: true });
 }
 
 // src/App.tsx
