@@ -2235,12 +2235,12 @@ function resolveBlockedBy(task, allTasks) {
 function statusBadge(status) {
   switch (status) {
     case "in_progress":
-      return "\u25B6";
+      return "\uD83E\uDD16";
     case "completed":
-      return "\u2713";
+      return "\u2705";
     case "pending":
     default:
-      return "\u25CF";
+      return "\u23F3";
   }
 }
 function extractRolePrefix(subject) {
@@ -2293,7 +2293,7 @@ function TaskList(props) {
       const t2 = e.team;
       const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
       const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
-      return `LIVE | ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
+      return `\u26A1 ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
     }
     const t = e.team;
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`;
@@ -2447,7 +2447,7 @@ function TaskList(props) {
     setProp(_el$3, "bold", true);
     insert(_el$3, (() => {
       var _c$ = memo2(() => entry()?.kind === "live");
-      return () => _c$() ? `${headerName()} LIVE` : headerName();
+      return () => _c$() ? `\u26A1 ${headerName()}` : headerName();
     })());
     insertNode(_el$4, _el$5);
     setProp(_el$4, "height", 1);
@@ -2657,12 +2657,12 @@ function TaskList(props) {
 function statusLabel(status) {
   switch (status) {
     case "in_progress":
-      return "\u25B6 In Progress";
+      return "\uD83E\uDD16 In Progress";
     case "completed":
-      return "\u2713 Completed";
+      return "\u2705 Completed";
     case "pending":
     default:
-      return "\u25CF Pending";
+      return "\u23F3 Pending";
   }
 }
 function ownerColor(owner, config) {

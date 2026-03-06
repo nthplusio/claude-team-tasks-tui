@@ -5,10 +5,10 @@ import type { UnifiedTeamEntry, LiveTask, TaskMeta, TeamConfig } from "../types"
 
 function statusLabel(status: LiveTask["status"]): string {
   switch (status) {
-    case "in_progress": return "\u25B6 In Progress"
-    case "completed": return "\u2713 Completed"
+    case "in_progress": return "🤖 In Progress"
+    case "completed": return "✅ Completed"
     case "pending":
-    default: return "\u25CF Pending"
+    default: return "⏳ Pending"
   }
 }
 

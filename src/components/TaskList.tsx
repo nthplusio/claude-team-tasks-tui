@@ -25,10 +25,10 @@ function resolveBlockedBy(task: LiveTask, allTasks: LiveTask[]): string {
 /** Status badge for live tasks */
 function statusBadge(status: LiveTask["status"]): string {
   switch (status) {
-    case "in_progress": return "▶"
-    case "completed": return "✓"
+    case "in_progress": return "🤖"
+    case "completed": return "✅"
     case "pending":
-    default: return "●"
+    default: return "⏳"
   }
 }
 
@@ -95,7 +95,7 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
       const t = e.team
       const inProgress = t.tasks.filter((tk) => tk.status === "in_progress").length
       const completed = t.tasks.filter((tk) => tk.status === "completed").length
-      return `LIVE | ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
+      return `⚡ ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
     }
     const t = e.team
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`
@@ -270,7 +270,7 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
       {/* Header */}
       <box height={1} backgroundColor={colors.bgDark} padding={{ left: 1 }}>
         <text bold fg={headerColor()}>
-          {entry()?.kind === "live" ? `${headerName()} LIVE` : headerName()}
+          {entry()?.kind === "live" ? `⚡ ${headerName()}` : headerName()}
         </text>
       </box>
       <box height={1} padding={{ left: 1 }}>
