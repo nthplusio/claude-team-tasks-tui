@@ -2214,6 +2214,24 @@ function TeamList(props) {
 }
 
 // src/components/TaskList.tsx
+function modelShort(model) {
+  if (model.startsWith("claude-opus"))
+    return "opus";
+  if (model.startsWith("claude-sonnet"))
+    return "sonnet";
+  if (model.startsWith("claude-haiku"))
+    return "haiku";
+  return model;
+}
+function resolveBlockedBy(task, allTasks) {
+  if (task.blockedBy.length === 0)
+    return "";
+  const resolved = task.blockedBy.map((id) => {
+    const dep = allTasks.find((t) => t.id === id);
+    return dep ? `#${id}: ${dep.subject}` : `#${id}`;
+  });
+  return ` [BLOCKED by ${resolved.join(", ")}]`;
+}
 function statusBadge(status) {
   switch (status) {
     case "in_progress":
@@ -2232,9 +2250,9 @@ function extractRolePrefix(subject) {
 function resolveOwner(task) {
   return task.owner || extractRolePrefix(task.subject) || `#${task.id}`;
 }
-function liveTaskDesc(task) {
+function liveTaskDesc(task, allTasks) {
   const owner = resolveOwner(task);
-  const blockedTag = task.blockedBy.length > 0 ? " [BLOCKED]" : "";
+  const blockedTag = resolveBlockedBy(task, allTasks);
   if (task.status === "in_progress" && task.activeForm) {
     return `${task.activeForm} | ${owner}${blockedTag}`;
   }
@@ -2280,11 +2298,17 @@ function TaskList(props) {
     const t = e.team;
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`;
   });
+  const teamDescription = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "live" || !e.team.config)
+      return "";
+    return e.team.config.description || "";
+  });
   const memberRoster = createMemo(() => {
     const e = entry();
     if (!e || e.kind !== "live" || !e.team.config)
       return "";
-    return e.team.config.members.map((m) => m.name).join(" | ");
+    return e.team.config.members.map((m) => `${m.name} (${modelShort(m.model)}/${m.agentType})`).join(" | ");
   });
   const groupedTasks = createMemo(() => {
     const e = entry();
@@ -2310,13 +2334,17 @@ function TaskList(props) {
           break;
       }
     });
-    return [pending, active, done];
+    const unblocked = pending.filter((gt) => gt.task.blockedBy.length === 0);
+    const blocked = pending.filter((gt) => gt.task.blockedBy.length > 0);
+    return [[...unblocked, ...blocked], active, done];
   });
   const columnOptions = createMemo(() => {
+    const e = entry();
+    const allTasks = e?.kind === "live" ? e.team.tasks : [];
     const groups = groupedTasks();
     return groups.map((col) => col.map((gt) => ({
       name: liveTaskName(gt.task),
-      description: liveTaskDesc(gt.task)
+      description: liveTaskDesc(gt.task, allTasks)
     })));
   });
   const [kanbanCol, setKanbanCol] = createSignal(0);
@@ -2429,7 +2457,7 @@ function TaskList(props) {
     insert(_el$5, headerText);
     insert(_el$, createComponent2(Show, {
       get when() {
-        return memberRoster();
+        return teamDescription();
       },
       get children() {
         var _el$6 = createElement("box"), _el$7 = createElement("text");
@@ -2438,9 +2466,25 @@ function TaskList(props) {
         setProp(_el$6, "padding", {
           left: 1
         });
-        insert(_el$7, memberRoster);
-        effect((_$p) => setProp(_el$7, "fg", colors.purple, _$p));
+        insert(_el$7, teamDescription);
+        effect((_$p) => setProp(_el$7, "fg", colors.fg, _$p));
         return _el$6;
+      }
+    }), null);
+    insert(_el$, createComponent2(Show, {
+      get when() {
+        return memberRoster();
+      },
+      get children() {
+        var _el$8 = createElement("box"), _el$9 = createElement("text");
+        insertNode(_el$8, _el$9);
+        setProp(_el$8, "height", 1);
+        setProp(_el$8, "padding", {
+          left: 1
+        });
+        insert(_el$9, memberRoster);
+        effect((_$p) => setProp(_el$9, "fg", colors.purple, _$p));
+        return _el$8;
       }
     }), null);
     insert(_el$, createComponent2(Show, {
@@ -2454,62 +2498,62 @@ function TaskList(props) {
           },
           get fallback() {
             return (() => {
-              var _el$0 = createElement("box"), _el$1 = createElement("text");
-              insertNode(_el$0, _el$1);
-              setProp(_el$0, "padding", 1);
-              insertNode(_el$1, createTextNode(`No tasks found`));
-              effect((_$p) => setProp(_el$1, "fg", colors.fgDark, _$p));
-              return _el$0;
+              var _el$10 = createElement("box"), _el$11 = createElement("text");
+              insertNode(_el$10, _el$11);
+              setProp(_el$10, "padding", 1);
+              insertNode(_el$11, createTextNode(`No tasks found`));
+              effect((_$p) => setProp(_el$11, "fg", colors.fgDark, _$p));
+              return _el$10;
             })();
           },
           get children() {
-            var _el$8 = createElement("box");
-            setProp(_el$8, "flexDirection", "row");
-            setProp(_el$8, "flexGrow", 1);
-            insert(_el$8, () => [0, 1, 2].map((colIndex) => (() => {
-              var _el$11 = createElement("box"), _el$12 = createElement("box"), _el$13 = createElement("text");
-              insertNode(_el$11, _el$12);
-              setProp(_el$11, "flexDirection", "column");
-              setProp(_el$11, "width", colIndex === 1 ? "34%" : "33%");
-              setProp(_el$11, "borderStyle", "single");
-              insertNode(_el$12, _el$13);
-              setProp(_el$12, "height", 1);
-              setProp(_el$12, "padding", {
+            var _el$0 = createElement("box");
+            setProp(_el$0, "flexDirection", "row");
+            setProp(_el$0, "flexGrow", 1);
+            insert(_el$0, () => [0, 1, 2].map((colIndex) => (() => {
+              var _el$13 = createElement("box"), _el$14 = createElement("box"), _el$15 = createElement("text");
+              insertNode(_el$13, _el$14);
+              setProp(_el$13, "flexDirection", "column");
+              setProp(_el$13, "width", colIndex === 1 ? "34%" : "33%");
+              setProp(_el$13, "borderStyle", "single");
+              insertNode(_el$14, _el$15);
+              setProp(_el$14, "height", 1);
+              setProp(_el$14, "padding", {
                 left: 1
               });
-              setProp(_el$13, "bold", true);
-              insert(_el$13, () => `${COLUMN_LABELS[colIndex]} (${groupedTasks()[colIndex].length})`);
-              insert(_el$11, createComponent2(Show, {
+              setProp(_el$15, "bold", true);
+              insert(_el$15, () => `${COLUMN_LABELS[colIndex]} (${groupedTasks()[colIndex].length})`);
+              insert(_el$13, createComponent2(Show, {
                 get when() {
                   return columnOptions()[colIndex].length > 0;
                 },
                 get fallback() {
                   return (() => {
-                    var _el$15 = createElement("box"), _el$16 = createElement("text");
-                    insertNode(_el$15, _el$16);
-                    setProp(_el$15, "padding", {
+                    var _el$17 = createElement("box"), _el$18 = createElement("text");
+                    insertNode(_el$17, _el$18);
+                    setProp(_el$17, "padding", {
                       left: 1
                     });
-                    insertNode(_el$16, createTextNode(`\u2014`));
-                    effect((_$p) => setProp(_el$16, "fg", colors.fgDark, _$p));
-                    return _el$15;
+                    insertNode(_el$18, createTextNode(`\u2014`));
+                    effect((_$p) => setProp(_el$18, "fg", colors.fgDark, _$p));
+                    return _el$17;
                   })();
                 },
                 get children() {
-                  var _el$14 = createElement("select");
-                  setProp(_el$14, "width", "100%");
-                  setProp(_el$14, "flexGrow", 1);
+                  var _el$16 = createElement("select");
+                  setProp(_el$16, "width", "100%");
+                  setProp(_el$16, "flexGrow", 1);
                   effect((_p$) => {
                     var _v$10 = columnOptions()[colIndex], _v$11 = props.focused && kanbanCol() === colIndex, _v$12 = colors.bg, _v$13 = colors.selection, _v$14 = colors.fg, _v$15 = colors.fgDark, _v$16 = colors.fgMuted, _v$17 = handleColumnSelect(colIndex), _v$18 = handleColumnChange(colIndex);
-                    _v$10 !== _p$.e && (_p$.e = setProp(_el$14, "options", _v$10, _p$.e));
-                    _v$11 !== _p$.t && (_p$.t = setProp(_el$14, "focused", _v$11, _p$.t));
-                    _v$12 !== _p$.a && (_p$.a = setProp(_el$14, "backgroundColor", _v$12, _p$.a));
-                    _v$13 !== _p$.o && (_p$.o = setProp(_el$14, "selectedBackgroundColor", _v$13, _p$.o));
-                    _v$14 !== _p$.i && (_p$.i = setProp(_el$14, "selectedTextColor", _v$14, _p$.i));
-                    _v$15 !== _p$.n && (_p$.n = setProp(_el$14, "textColor", _v$15, _p$.n));
-                    _v$16 !== _p$.s && (_p$.s = setProp(_el$14, "descriptionColor", _v$16, _p$.s));
-                    _v$17 !== _p$.h && (_p$.h = setProp(_el$14, "onSelect", _v$17, _p$.h));
-                    _v$18 !== _p$.r && (_p$.r = setProp(_el$14, "onChange", _v$18, _p$.r));
+                    _v$10 !== _p$.e && (_p$.e = setProp(_el$16, "options", _v$10, _p$.e));
+                    _v$11 !== _p$.t && (_p$.t = setProp(_el$16, "focused", _v$11, _p$.t));
+                    _v$12 !== _p$.a && (_p$.a = setProp(_el$16, "backgroundColor", _v$12, _p$.a));
+                    _v$13 !== _p$.o && (_p$.o = setProp(_el$16, "selectedBackgroundColor", _v$13, _p$.o));
+                    _v$14 !== _p$.i && (_p$.i = setProp(_el$16, "selectedTextColor", _v$14, _p$.i));
+                    _v$15 !== _p$.n && (_p$.n = setProp(_el$16, "textColor", _v$15, _p$.n));
+                    _v$16 !== _p$.s && (_p$.s = setProp(_el$16, "descriptionColor", _v$16, _p$.s));
+                    _v$17 !== _p$.h && (_p$.h = setProp(_el$16, "onSelect", _v$17, _p$.h));
+                    _v$18 !== _p$.r && (_p$.r = setProp(_el$16, "onChange", _v$18, _p$.r));
                     return _p$;
                   }, {
                     e: undefined,
@@ -2522,23 +2566,23 @@ function TaskList(props) {
                     h: undefined,
                     r: undefined
                   });
-                  return _el$14;
+                  return _el$16;
                 }
               }), null);
               effect((_p$) => {
                 var _v$19 = props.focused && kanbanCol() === colIndex ? colors.blue : colors.border, _v$20 = colors.bgDark, _v$21 = COLUMN_COLORS[colIndex];
-                _v$19 !== _p$.e && (_p$.e = setProp(_el$11, "borderColor", _v$19, _p$.e));
-                _v$20 !== _p$.t && (_p$.t = setProp(_el$12, "backgroundColor", _v$20, _p$.t));
-                _v$21 !== _p$.a && (_p$.a = setProp(_el$13, "fg", _v$21, _p$.a));
+                _v$19 !== _p$.e && (_p$.e = setProp(_el$13, "borderColor", _v$19, _p$.e));
+                _v$20 !== _p$.t && (_p$.t = setProp(_el$14, "backgroundColor", _v$20, _p$.t));
+                _v$21 !== _p$.a && (_p$.a = setProp(_el$15, "fg", _v$21, _p$.a));
                 return _p$;
               }, {
                 e: undefined,
                 t: undefined,
                 a: undefined
               });
-              return _el$11;
+              return _el$13;
             })()));
-            return _el$8;
+            return _el$0;
           }
         });
       }
@@ -2554,29 +2598,29 @@ function TaskList(props) {
           },
           get fallback() {
             return (() => {
-              var _el$18 = createElement("box"), _el$19 = createElement("text");
-              insertNode(_el$18, _el$19);
-              setProp(_el$18, "padding", 1);
-              insertNode(_el$19, createTextNode(`No tasks found`));
-              effect((_$p) => setProp(_el$19, "fg", colors.fgDark, _$p));
-              return _el$18;
+              var _el$20 = createElement("box"), _el$21 = createElement("text");
+              insertNode(_el$20, _el$21);
+              setProp(_el$20, "padding", 1);
+              insertNode(_el$21, createTextNode(`No tasks found`));
+              effect((_$p) => setProp(_el$21, "fg", colors.fgDark, _$p));
+              return _el$20;
             })();
           },
           get children() {
-            var _el$9 = createElement("select");
-            setProp(_el$9, "width", "100%");
-            setProp(_el$9, "flexGrow", 1);
-            setProp(_el$9, "onSelect", (index) => props.onSelect(index));
-            setProp(_el$9, "onChange", (index) => props.onChange?.(index));
+            var _el$1 = createElement("select");
+            setProp(_el$1, "width", "100%");
+            setProp(_el$1, "flexGrow", 1);
+            setProp(_el$1, "onSelect", (index) => props.onSelect(index));
+            setProp(_el$1, "onChange", (index) => props.onChange?.(index));
             effect((_p$) => {
               var _v$ = docsOptions(), _v$2 = props.focused, _v$3 = colors.bg, _v$4 = colors.selection, _v$5 = colors.fg, _v$6 = colors.fgDark, _v$7 = colors.fgMuted;
-              _v$ !== _p$.e && (_p$.e = setProp(_el$9, "options", _v$, _p$.e));
-              _v$2 !== _p$.t && (_p$.t = setProp(_el$9, "focused", _v$2, _p$.t));
-              _v$3 !== _p$.a && (_p$.a = setProp(_el$9, "backgroundColor", _v$3, _p$.a));
-              _v$4 !== _p$.o && (_p$.o = setProp(_el$9, "selectedBackgroundColor", _v$4, _p$.o));
-              _v$5 !== _p$.i && (_p$.i = setProp(_el$9, "selectedTextColor", _v$5, _p$.i));
-              _v$6 !== _p$.n && (_p$.n = setProp(_el$9, "textColor", _v$6, _p$.n));
-              _v$7 !== _p$.s && (_p$.s = setProp(_el$9, "descriptionColor", _v$7, _p$.s));
+              _v$ !== _p$.e && (_p$.e = setProp(_el$1, "options", _v$, _p$.e));
+              _v$2 !== _p$.t && (_p$.t = setProp(_el$1, "focused", _v$2, _p$.t));
+              _v$3 !== _p$.a && (_p$.a = setProp(_el$1, "backgroundColor", _v$3, _p$.a));
+              _v$4 !== _p$.o && (_p$.o = setProp(_el$1, "selectedBackgroundColor", _v$4, _p$.o));
+              _v$5 !== _p$.i && (_p$.i = setProp(_el$1, "selectedTextColor", _v$5, _p$.i));
+              _v$6 !== _p$.n && (_p$.n = setProp(_el$1, "textColor", _v$6, _p$.n));
+              _v$7 !== _p$.s && (_p$.s = setProp(_el$1, "descriptionColor", _v$7, _p$.s));
               return _p$;
             }, {
               e: undefined,
@@ -2587,7 +2631,7 @@ function TaskList(props) {
               n: undefined,
               s: undefined
             });
-            return _el$9;
+            return _el$1;
           }
         });
       }
@@ -2627,10 +2671,14 @@ function ownerColor(owner, config) {
   const member = config.members.find((m) => m.name === owner);
   return member?.color || colors.fg;
 }
-function depStr(label, ids) {
+function depStr(label, ids, allTasks) {
   if (ids.length === 0)
     return "";
-  return `${label}: ${ids.map((id) => `#${id}`).join(", ")}`;
+  const resolved = ids.map((id) => {
+    const dep = allTasks.find((t) => t.id === id);
+    return dep ? `#${id} ${dep.subject}` : `#${id}`;
+  });
+  return `${label}: ${resolved.join(", ")}`;
 }
 function TaskDetail() {
   const entry = createMemo(() => {
@@ -2672,13 +2720,20 @@ function TaskDetail() {
       return dt.title;
     return "No task selected";
   });
+  const allTasks = createMemo(() => {
+    const e = entry();
+    if (!e || e.kind !== "live")
+      return [];
+    return e.team.tasks;
+  });
   const depsLine = createMemo(() => {
     const lt = liveTask();
     if (!lt)
       return "";
+    const tasks = allTasks();
     const parts = [];
-    const blocksStr = depStr("Blocks", lt.blocks);
-    const blockedByStr = depStr("Blocked by", lt.blockedBy);
+    const blocksStr = depStr("Blocks", lt.blocks, tasks);
+    const blockedByStr = depStr("Blocked by", lt.blockedBy, tasks);
     if (blocksStr)
       parts.push(blocksStr);
     if (blockedByStr)

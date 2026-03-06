@@ -4,6 +4,24 @@ import { state, getUnifiedTeams } from "../data/store"
 import { colors, teamTypeColors, teamTypeLabel } from "../theme"
 import type { LiveTask, UnifiedTeamEntry } from "../types"
 
+/** Map model ID to short label */
+function modelShort(model: string): string {
+  if (model.startsWith("claude-opus")) return "opus"
+  if (model.startsWith("claude-sonnet")) return "sonnet"
+  if (model.startsWith("claude-haiku")) return "haiku"
+  return model
+}
+
+/** Resolve blockedBy IDs to "#id: subject" strings */
+function resolveBlockedBy(task: LiveTask, allTasks: LiveTask[]): string {
+  if (task.blockedBy.length === 0) return ""
+  const resolved = task.blockedBy.map((id) => {
+    const dep = allTasks.find((t) => t.id === id)
+    return dep ? `#${id}: ${dep.subject}` : `#${id}`
+  })
+  return ` [BLOCKED by ${resolved.join(", ")}]`
+}
+
 /** Status badge for live tasks */
 function statusBadge(status: LiveTask["status"]): string {
   switch (status) {
@@ -25,10 +43,10 @@ function resolveOwner(task: LiveTask): string {
   return task.owner || extractRolePrefix(task.subject) || `#${task.id}`
 }
 
-/** Build task description with owner and blocked indicator */
-function liveTaskDesc(task: LiveTask): string {
+/** Build task description with owner and resolved blocked indicator */
+function liveTaskDesc(task: LiveTask, allTasks: LiveTask[]): string {
   const owner = resolveOwner(task)
-  const blockedTag = task.blockedBy.length > 0 ? " [BLOCKED]" : ""
+  const blockedTag = resolveBlockedBy(task, allTasks)
   if (task.status === "in_progress" && task.activeForm) {
     return `${task.activeForm} | ${owner}${blockedTag}`
   }
@@ -83,10 +101,18 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`
   })
 
+  const teamDescription = createMemo(() => {
+    const e = entry()
+    if (!e || e.kind !== "live" || !e.team.config) return ""
+    return e.team.config.description || ""
+  })
+
   const memberRoster = createMemo(() => {
     const e = entry()
     if (!e || e.kind !== "live" || !e.team.config) return ""
-    return e.team.config.members.map((m) => m.name).join(" | ")
+    return e.team.config.members
+      .map((m) => `${m.name} (${modelShort(m.model)}/${m.agentType})`)
+      .join(" | ")
   })
 
   // --- Kanban state (live teams only) ---
@@ -106,16 +132,21 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
         case "completed": done.push(gt); break
       }
     })
-    return [pending, active, done]
+    // Sort pending: unblocked first, then blocked — preserve original order within each group
+    const unblocked = pending.filter((gt) => gt.task.blockedBy.length === 0)
+    const blocked = pending.filter((gt) => gt.task.blockedBy.length > 0)
+    return [[...unblocked, ...blocked], active, done]
   })
 
   /** Select options for each column */
   const columnOptions = createMemo(() => {
+    const e = entry()
+    const allTasks = e?.kind === "live" ? e.team.tasks : []
     const groups = groupedTasks()
     return groups.map((col) =>
       col.map((gt) => ({
         name: liveTaskName(gt.task),
-        description: liveTaskDesc(gt.task),
+        description: liveTaskDesc(gt.task, allTasks),
       }))
     )
   })
@@ -245,6 +276,11 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
       <box height={1} padding={{ left: 1 }}>
         <text fg={colors.fgMuted}>{headerText()}</text>
       </box>
+      <Show when={teamDescription()}>
+        <box height={1} padding={{ left: 1 }}>
+          <text fg={colors.fg}>{teamDescription()}</text>
+        </box>
+      </Show>
       <Show when={memberRoster()}>
         <box height={1} padding={{ left: 1 }}>
           <text fg={colors.purple}>{memberRoster()}</text>

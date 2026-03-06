@@ -19,10 +19,14 @@ function ownerColor(owner: string | undefined, config: TeamConfig | undefined): 
   return member?.color || colors.fg
 }
 
-/** Format dependency list */
-function depStr(label: string, ids: string[]): string {
+/** Format dependency list with resolved subjects */
+function depStr(label: string, ids: string[], allTasks: LiveTask[]): string {
   if (ids.length === 0) return ""
-  return `${label}: ${ids.map((id) => `#${id}`).join(", ")}`
+  const resolved = ids.map((id) => {
+    const dep = allTasks.find((t) => t.id === id)
+    return dep ? `#${id} ${dep.subject}` : `#${id}`
+  })
+  return `${label}: ${resolved.join(", ")}`
 }
 
 export function TaskDetail() {
@@ -64,12 +68,19 @@ export function TaskDetail() {
     return "No task selected"
   })
 
+  const allTasks = createMemo((): LiveTask[] => {
+    const e = entry()
+    if (!e || e.kind !== "live") return []
+    return e.team.tasks
+  })
+
   const depsLine = createMemo(() => {
     const lt = liveTask()
     if (!lt) return ""
+    const tasks = allTasks()
     const parts: string[] = []
-    const blocksStr = depStr("Blocks", lt.blocks)
-    const blockedByStr = depStr("Blocked by", lt.blockedBy)
+    const blocksStr = depStr("Blocks", lt.blocks, tasks)
+    const blockedByStr = depStr("Blocked by", lt.blockedBy, tasks)
     if (blocksStr) parts.push(blocksStr)
     if (blockedByStr) parts.push(blockedByStr)
     return parts.join(" | ")
