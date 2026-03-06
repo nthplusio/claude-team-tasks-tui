@@ -1716,7 +1716,7 @@ var render = async (node, rendererOrConfig = {}) => {
 };
 
 // index.tsx
-import { resolve } from "path";
+import { resolve as resolve2 } from "path";
 
 // src/theme.ts
 var colors = {
@@ -2131,6 +2131,19 @@ function updateLiveTeam(dirName, tasks, displayName, config) {
       s.liveTeams.push(team);
     }
     s.lastUpdate = new Date;
+  }));
+}
+function removeTeam(dirName) {
+  setState(produce((s) => {
+    const idx = s.teams.findIndex((t) => t.dir === dirName);
+    if (idx >= 0) {
+      s.teams.splice(idx, 1);
+      s.lastUpdate = new Date;
+      const total = s.teams.length + s.liveTeams.length;
+      if (s.selectedTeamIndex >= total) {
+        s.selectedTeamIndex = Math.max(0, total - 1);
+      }
+    }
   }));
 }
 
@@ -2939,6 +2952,10 @@ function StatusBar(props) {
     insert(_el$2, timeStr, _el$6);
     insert(_el$2, () => props.panelFocus || "?", _el$7);
     insert(_el$2, () => props.lastKey || "j/k:nav enter:select q:quit", null);
+    insert(_el$2, () => {
+      const entry = getUnifiedTeams()[state.selectedTeamIndex];
+      return entry?.kind === "docs" ? " \uF187 a:archive" : "";
+    }, null);
     effect((_p$) => {
       var _v$ = colors.bgDark, _v$2 = colors.fgMuted;
       _v$ !== _p$.e && (_p$.e = setProp(_el$, "backgroundColor", _v$, _p$.e));
@@ -2952,6 +2969,15 @@ function StatusBar(props) {
   })();
 }
 
+// src/data/archive.ts
+import { mkdir, rename } from "fs/promises";
+import { resolve, join } from "path";
+async function archiveDocsTeam(watchPath, dirName) {
+  const archivePath = resolve(watchPath, "..", "teams-archived");
+  await mkdir(archivePath, { recursive: true });
+  await rename(join(watchPath, dirName), join(archivePath, dirName));
+}
+
 // src/App.tsx
 function App(props) {
   const renderer = useRenderer();
@@ -2959,6 +2985,7 @@ function App(props) {
   const isWide = createMemo(() => dimensions().width >= 80);
   const [panelFocus, setPanelFocus] = createSignal("left");
   const [lastKey, setLastKey] = createSignal("");
+  const [archiveConfirm, setArchiveConfirm] = createSignal(null);
   function handleTeamChange(index) {
     setLastKey(`onChange:team[${index}]`);
     selectTeam(index);
@@ -2983,9 +3010,27 @@ function App(props) {
   }
   useKeyboard((key) => {
     setLastKey(`key:${key.name}`);
+    const confirming = archiveConfirm();
+    if (confirming) {
+      if (key.name === "y") {
+        const dir = confirming;
+        setArchiveConfirm(null);
+        archiveDocsTeam(state.watchPath, dir).then(() => removeTeam(dir));
+      } else if (key.name === "n" || key.name === "escape") {
+        setArchiveConfirm(null);
+      }
+      return;
+    }
     if (key.name === "q" || key.ctrl && key.name === "c") {
       renderer.destroy();
       process.exit(0);
+    }
+    if (key.name === "a") {
+      const unified = getUnifiedTeams();
+      const entry = unified[state.selectedTeamIndex];
+      if (entry && entry.kind === "docs") {
+        setArchiveConfirm(entry.team.dir);
+      }
     }
     if (key.name === "escape") {
       if (state.viewMode === "detail") {
@@ -3072,6 +3117,34 @@ function App(props) {
         })];
       }
     }), null);
+    insert(_el$, createComponent2(Show, {
+      get when() {
+        return archiveConfirm();
+      },
+      children: (dir) => (() => {
+        var _el$5 = createElement("box"), _el$6 = createElement("text"), _el$7 = createTextNode(`Archive `), _el$8 = createTextNode(`? (y/n)`);
+        insertNode(_el$5, _el$6);
+        setProp(_el$5, "width", "100%");
+        setProp(_el$5, "height", 1);
+        setProp(_el$5, "padding", {
+          left: 1,
+          right: 1
+        });
+        insertNode(_el$6, _el$7);
+        insertNode(_el$6, _el$8);
+        insert(_el$6, dir, _el$8);
+        effect((_p$) => {
+          var _v$ = colors.bgDark, _v$2 = colors.yellow;
+          _v$ !== _p$.e && (_p$.e = setProp(_el$5, "backgroundColor", _v$, _p$.e));
+          _v$2 !== _p$.t && (_p$.t = setProp(_el$6, "fg", _v$2, _p$.t));
+          return _p$;
+        }, {
+          e: undefined,
+          t: undefined
+        });
+        return _el$5;
+      })()
+    }), null);
     insert(_el$, createComponent2(StatusBar, {
       get lastKey() {
         return lastKey();
@@ -3086,8 +3159,8 @@ function App(props) {
 }
 
 // src/data/parser.ts
-import { readdir, readFile, mkdir, stat } from "fs/promises";
-import { join, basename } from "path";
+import { readdir, readFile, mkdir as mkdir2, stat } from "fs/promises";
+import { join as join2, basename } from "path";
 import matter from "gray-matter";
 var TYPE_PREFIXES = [
   ["review", "review"],
@@ -3128,7 +3201,7 @@ function naturalSort(a, b) {
 }
 async function parseReadme(dirPath, dirName) {
   try {
-    const readmePath = join(dirPath, "README.md");
+    const readmePath = join2(dirPath, "README.md");
     const raw = await readFile(readmePath, "utf-8");
     const { data } = matter(raw);
     return {
@@ -3163,11 +3236,11 @@ async function parseTask(filePath) {
   };
 }
 async function parseTasks(dirPath) {
-  const tasksDir = join(dirPath, "tasks");
+  const tasksDir = join2(dirPath, "tasks");
   try {
     const entries = await readdir(tasksDir);
     const mdFiles = entries.filter((f) => f.endsWith(".md")).sort(naturalSort);
-    const tasks = await Promise.all(mdFiles.map((f) => parseTask(join(tasksDir, f))));
+    const tasks = await Promise.all(mdFiles.map((f) => parseTask(join2(tasksDir, f))));
     return tasks;
   } catch {
     return [];
@@ -3191,16 +3264,16 @@ async function parseTeam(dirPath) {
   return { dir: dirName, meta, tasks, lastModified };
 }
 async function parseAllTeams(watchPath) {
-  await mkdir(watchPath, { recursive: true });
+  await mkdir2(watchPath, { recursive: true });
   const entries = await readdir(watchPath, { withFileTypes: true });
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-  const teams = await Promise.all(dirs.map((d) => parseTeam(join(watchPath, d))));
+  const teams = await Promise.all(dirs.map((d) => parseTeam(join2(watchPath, d))));
   return teams.sort((a, b) => b.lastModified - a.lastModified);
 }
 
 // src/data/json-parser.ts
-import { readFile as readFile2, readdir as readdir2, mkdir as mkdir2, stat as stat2 } from "fs/promises";
-import { join as join2, basename as basename2 } from "path";
+import { readFile as readFile2, readdir as readdir2, mkdir as mkdir3, stat as stat2 } from "fs/promises";
+import { join as join3, basename as basename2 } from "path";
 var VALID_STATUSES = new Set(["pending", "in_progress", "completed"]);
 function asString(val) {
   return typeof val === "string" ? val : undefined;
@@ -3249,7 +3322,7 @@ async function parseTeamTasks(teamDirPath) {
   try {
     const entries = await readdir2(teamDirPath);
     const jsonFiles = entries.filter((f) => f.endsWith(".json")).sort(naturalSort2);
-    const results = await Promise.all(jsonFiles.map((f) => parseTaskFile(join2(teamDirPath, f))));
+    const results = await Promise.all(jsonFiles.map((f) => parseTaskFile(join3(teamDirPath, f))));
     return results.filter((t) => t !== null);
   } catch {
     return [];
@@ -3268,7 +3341,7 @@ async function getDirMtime2(dirPath) {
     }
     const mtimes = await Promise.all(entries.map(async (f) => {
       try {
-        const s = await stat2(join2(dirPath, f));
+        const s = await stat2(join3(dirPath, f));
         return s.mtimeMs;
       } catch {
         return 0;
@@ -3280,11 +3353,11 @@ async function getDirMtime2(dirPath) {
   }
 }
 async function parseAllLiveTeams(tasksPath) {
-  await mkdir2(tasksPath, { recursive: true });
+  await mkdir3(tasksPath, { recursive: true });
   const entries = await readdir2(tasksPath, { withFileTypes: true });
   const dirs = entries.filter((e) => e.isDirectory() && !isUUID(e.name)).map((e) => e.name);
   const teams = await Promise.all(dirs.map(async (dirName) => {
-    const dirPath = join2(tasksPath, dirName);
+    const dirPath = join3(tasksPath, dirName);
     const [tasks, lastModified] = await Promise.all([
       parseTeamTasks(dirPath),
       getDirMtime2(dirPath)
@@ -3296,7 +3369,7 @@ async function parseAllLiveTeams(tasksPath) {
 
 // src/data/watcher.ts
 import { watch } from "chokidar";
-import { join as join3, relative, sep } from "path";
+import { join as join4, relative, sep } from "path";
 var debounceTimer = null;
 var pendingDirs = new Set;
 function getTeamDir(watchPath, changedPath) {
@@ -3330,7 +3403,7 @@ function startFileWatcher(watchPath) {
       pendingDirs.clear();
       for (const dir of dirs) {
         try {
-          const team = await parseTeam(join3(watchPath, dir));
+          const team = await parseTeam(join4(watchPath, dir));
           updateTeam(dir, team);
         } catch {}
       }
@@ -3344,12 +3417,12 @@ function startFileWatcher(watchPath) {
 
 // src/data/json-watcher.ts
 import { watch as watch2 } from "chokidar";
-import { join as join5, relative as relative2, sep as sep2 } from "path";
-import { mkdir as mkdir3 } from "fs/promises";
+import { join as join6, relative as relative2, sep as sep2 } from "path";
+import { mkdir as mkdir4 } from "fs/promises";
 
 // src/data/config-reader.ts
 import { readdir as readdir3, readFile as readFile3 } from "fs/promises";
-import { join as join4 } from "path";
+import { join as join5 } from "path";
 import { homedir } from "os";
 function asString2(val) {
   return typeof val === "string" ? val : undefined;
@@ -3394,10 +3467,10 @@ function parseConfig(raw) {
   }
 }
 function getTeamsDir() {
-  return join4(homedir(), ".claude", "teams");
+  return join5(homedir(), ".claude", "teams");
 }
 function getTasksDir() {
-  return join4(homedir(), ".claude", "tasks");
+  return join5(homedir(), ".claude", "tasks");
 }
 async function scanTeamConfigs() {
   const configs = new Map;
@@ -3407,7 +3480,7 @@ async function scanTeamConfigs() {
     const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
     await Promise.all(dirs.map(async (dirName) => {
       try {
-        const raw = await readFile3(join4(teamsDir, dirName, "config.json"), "utf-8");
+        const raw = await readFile3(join5(teamsDir, dirName, "config.json"), "utf-8");
         const config = parseConfig(raw);
         if (config) {
           configs.set(dirName, config);
@@ -3457,7 +3530,7 @@ function setConfigCache(configs) {
   configCache = configs;
 }
 async function startJsonWatcher(tasksPath) {
-  await mkdir3(tasksPath, { recursive: true });
+  await mkdir4(tasksPath, { recursive: true });
   const watcher = watch2(tasksPath, {
     ignoreInitial: true,
     depth: 1,
@@ -3480,7 +3553,7 @@ async function startJsonWatcher(tasksPath) {
       pendingDirs2.clear();
       for (const dir of dirs) {
         try {
-          const tasks = await parseTeamTasks(join5(tasksPath, dir));
+          const tasks = await parseTeamTasks(join6(tasksPath, dir));
           const displayName = resolveDisplayName(dir, configCache);
           const config = configCache.get(dir);
           updateLiveTeam(dir, tasks, displayName, config);
@@ -3495,7 +3568,7 @@ async function startJsonWatcher(tasksPath) {
 }
 
 // index.tsx
-var watchPath = resolve(process.argv[2] || "docs/teams");
+var watchPath = resolve2(process.argv[2] || "docs/teams");
 var tasksPath = getTasksDir();
 var [teams, configs, liveTeams] = await Promise.all([parseAllTeams(watchPath), scanTeamConfigs(), parseAllLiveTeams(tasksPath)]);
 for (const lt of liveTeams) {

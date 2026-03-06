@@ -135,3 +135,19 @@ export function removeLiveTeam(dirName: string) {
     })
   )
 }
+
+export function removeTeam(dirName: string) {
+  setState(
+    produce((s) => {
+      const idx = s.teams.findIndex((t) => t.dir === dirName)
+      if (idx >= 0) {
+        s.teams.splice(idx, 1)
+        s.lastUpdate = new Date()
+        const total = s.teams.length + s.liveTeams.length
+        if (s.selectedTeamIndex >= total) {
+          s.selectedTeamIndex = Math.max(0, total - 1)
+        }
+      }
+    })
+  )
+}

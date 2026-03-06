@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Switch, Match } from "solid-js"
+import { createSignal, createMemo, Switch, Match, Show } from "solid-js"
 import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid"
 import { Header } from "./components/Header"
 import { TeamList } from "./components/TeamList"
@@ -11,7 +11,10 @@ import {
   selectTeam,
   selectTask,
   setViewMode,
+  getUnifiedTeams,
+  removeTeam,
 } from "./data/store"
+import { archiveDocsTeam } from "./data/archive"
 
 export function App(props: { watchPath: string }) {
   const renderer = useRenderer()
@@ -20,6 +23,7 @@ export function App(props: { watchPath: string }) {
 
   const [panelFocus, setPanelFocus] = createSignal<"left" | "right">("left")
   const [lastKey, setLastKey] = createSignal("")
+  const [archiveConfirm, setArchiveConfirm] = createSignal<string | null>(null)
 
   // Update task panel preview as user navigates teams
   function handleTeamChange(index: number) {
@@ -54,9 +58,30 @@ export function App(props: { watchPath: string }) {
   useKeyboard((key) => {
     setLastKey(`key:${key.name}`)
 
+    // Archive confirmation mode
+    const confirming = archiveConfirm()
+    if (confirming) {
+      if (key.name === "y") {
+        const dir = confirming
+        setArchiveConfirm(null)
+        archiveDocsTeam(state.watchPath, dir).then(() => removeTeam(dir))
+      } else if (key.name === "n" || key.name === "escape") {
+        setArchiveConfirm(null)
+      }
+      return
+    }
+
     if (key.name === "q" || (key.ctrl && key.name === "c")) {
       renderer.destroy()
       process.exit(0)
+    }
+
+    if (key.name === "a") {
+      const unified = getUnifiedTeams()
+      const entry = unified[state.selectedTeamIndex]
+      if (entry && entry.kind === "docs") {
+        setArchiveConfirm(entry.team.dir)
+      }
     }
 
     if (key.name === "escape") {
@@ -108,6 +133,13 @@ export function App(props: { watchPath: string }) {
         </Match>
       </Switch>
 
+      <Show when={archiveConfirm()}>
+        {(dir) => (
+          <box width="100%" height={1} backgroundColor={colors.bgDark} padding={{ left: 1, right: 1 }}>
+            <text fg={colors.yellow}>Archive {dir()}? (y/n)</text>
+          </box>
+        )}
+      </Show>
       <StatusBar lastKey={lastKey()} panelFocus={panelFocus()} />
     </box>
   )
