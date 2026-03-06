@@ -2141,11 +2141,11 @@ function teamOptionName(entry) {
     const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
     const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
     const total = t2.tasks.length;
-    const prefix = inProgress > 0 ? "\u25B6" : completed === total && total > 0 ? "\u2713" : "\u25CF";
+    const prefix = inProgress > 0 ? "\uEB99" : completed === total && total > 0 ? "\uF058" : "\uF0E7";
     return `${prefix} ${t2.displayName}`;
   }
   const t = entry.team;
-  const icon = t.meta.status === "completed" ? "\u2713" : "\u25CB";
+  const icon = t.meta.status === "completed" ? "\uF058" : "\uF114";
   return `${icon} ${t.dir}`;
 }
 function teamOptionDesc(entry) {
@@ -2153,7 +2153,7 @@ function teamOptionDesc(entry) {
     const t2 = entry.team;
     const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
     const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
-    return `LIVE | ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
+    return `\uF0E7 ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
   }
   const t = entry.team;
   return `${teamTypeLabel(t.meta.type)} | ${t.tasks.length} tasks`;
@@ -2179,7 +2179,7 @@ function TeamList(props) {
       left: 1
     });
     setProp(_el$3, "bold", true);
-    insert(_el$3, () => hasLive() ? "Teams LIVE" : "Teams");
+    insert(_el$3, () => hasLive() ? "\uF0E7 Teams" : "Teams");
     setProp(_el$4, "width", "100%");
     setProp(_el$4, "flexGrow", 1);
     setProp(_el$4, "onSelect", (index) => props.onSelect(index));
@@ -2235,12 +2235,12 @@ function resolveBlockedBy(task, allTasks) {
 function statusBadge(status) {
   switch (status) {
     case "in_progress":
-      return "\uD83E\uDD16";
+      return "\uEB99";
     case "completed":
-      return "\u2705";
+      return "\uF058";
     case "pending":
     default:
-      return "\u23F3";
+      return "\uF252";
   }
 }
 function extractRolePrefix(subject) {
@@ -2260,8 +2260,8 @@ function liveTaskDesc(task, allTasks) {
 }
 function liveTaskName(task) {
   const badge = statusBadge(task.status);
-  const dimPrefix = task.blockedBy.length > 0 && task.status === "pending" ? "~ " : "";
-  return `${dimPrefix}${badge} ${task.subject}`;
+  const blocked = task.blockedBy.length > 0 && task.status === "pending" ? "\uF023 " : "";
+  return `${badge} ${blocked}${task.subject}`;
 }
 var COLUMN_LABELS = ["PENDING", "ACTIVE", "DONE"];
 var COLUMN_COLORS = [colors.fgMuted, colors.yellow, colors.green];
@@ -2293,7 +2293,7 @@ function TaskList(props) {
       const t2 = e.team;
       const inProgress = t2.tasks.filter((tk) => tk.status === "in_progress").length;
       const completed = t2.tasks.filter((tk) => tk.status === "completed").length;
-      return `\u26A1 ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
+      return `\uF0E7 ${t2.tasks.length} tasks | ${inProgress} active | ${completed} done`;
     }
     const t = e.team;
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`;
@@ -2447,7 +2447,7 @@ function TaskList(props) {
     setProp(_el$3, "bold", true);
     insert(_el$3, (() => {
       var _c$ = memo2(() => entry()?.kind === "live");
-      return () => _c$() ? `\u26A1 ${headerName()}` : headerName();
+      return () => _c$() ? `\uF0E7 ${headerName()}` : headerName();
     })());
     insertNode(_el$4, _el$5);
     setProp(_el$4, "height", 1);
@@ -2657,12 +2657,12 @@ function TaskList(props) {
 function statusLabel(status) {
   switch (status) {
     case "in_progress":
-      return "\uD83E\uDD16 In Progress";
+      return "\uEB99 In Progress";
     case "completed":
-      return "\u2705 Completed";
+      return "\uF058 Completed";
     case "pending":
     default:
-      return "\u23F3 Pending";
+      return "\uF252 Pending";
   }
 }
 function ownerColor(owner, config) {

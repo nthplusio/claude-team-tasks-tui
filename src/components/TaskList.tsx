@@ -22,13 +22,13 @@ function resolveBlockedBy(task: LiveTask, allTasks: LiveTask[]): string {
   return ` [BLOCKED by ${resolved.join(", ")}]`
 }
 
-/** Status badge for live tasks */
+/** Status badge for live tasks (Nerd Font glyphs) */
 function statusBadge(status: LiveTask["status"]): string {
   switch (status) {
-    case "in_progress": return "🤖"
-    case "completed": return "✅"
+    case "in_progress": return "\uEB99"  // nf-cod-robot
+    case "completed": return "\uF058"    // nf-fa-check_circle
     case "pending":
-    default: return "⏳"
+    default: return "\uF252"             // nf-fa-hourglass_half
   }
 }
 
@@ -53,11 +53,10 @@ function liveTaskDesc(task: LiveTask, allTasks: LiveTask[]): string {
   return `${owner}${blockedTag}`
 }
 
-/** Dim prefix for blocked tasks */
 function liveTaskName(task: LiveTask): string {
   const badge = statusBadge(task.status)
-  const dimPrefix = task.blockedBy.length > 0 && task.status === "pending" ? "~ " : ""
-  return `${dimPrefix}${badge} ${task.subject}`
+  const blocked = task.blockedBy.length > 0 && task.status === "pending" ? "\uF023 " : ""  // nf-fa-lock
+  return `${badge} ${blocked}${task.subject}`
 }
 
 type GroupedTask = { task: LiveTask; flatIndex: number }
@@ -95,7 +94,7 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
       const t = e.team
       const inProgress = t.tasks.filter((tk) => tk.status === "in_progress").length
       const completed = t.tasks.filter((tk) => tk.status === "completed").length
-      return `⚡ ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
+      return `\uF0E7 ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
     }
     const t = e.team
     return `${teamTypeLabel(t.meta.type)} | ${t.meta.topic || t.dir} | ${t.tasks.length} tasks`
@@ -270,7 +269,7 @@ export function TaskList(props: { focused: boolean; onSelect: (index: number) =>
       {/* Header */}
       <box height={1} backgroundColor={colors.bgDark} padding={{ left: 1 }}>
         <text bold fg={headerColor()}>
-          {entry()?.kind === "live" ? `⚡ ${headerName()}` : headerName()}
+          {entry()?.kind === "live" ? `\uF0E7 ${headerName()}` : headerName()}
         </text>
       </box>
       <box height={1} padding={{ left: 1 }}>

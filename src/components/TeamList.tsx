@@ -9,11 +9,11 @@ function teamOptionName(entry: UnifiedTeamEntry): string {
     const inProgress = t.tasks.filter((tk) => tk.status === "in_progress").length
     const completed = t.tasks.filter((tk) => tk.status === "completed").length
     const total = t.tasks.length
-    const prefix = inProgress > 0 ? "\u25B6" : completed === total && total > 0 ? "\u2713" : "\u25CF"
+    const prefix = inProgress > 0 ? "\uEB99" : completed === total && total > 0 ? "\uF058" : "\uF0E7"  // robot / check_circle / bolt
     return `${prefix} ${t.displayName}`
   }
   const t = entry.team
-  const icon = t.meta.status === "completed" ? "\u2713" : "\u25CB"
+  const icon = t.meta.status === "completed" ? "\uF058" : "\uF114"  // nf-fa-check_circle / nf-fa-folder_o
   return `${icon} ${t.dir}`
 }
 
@@ -22,7 +22,7 @@ function teamOptionDesc(entry: UnifiedTeamEntry): string {
     const t = entry.team
     const inProgress = t.tasks.filter((tk) => tk.status === "in_progress").length
     const completed = t.tasks.filter((tk) => tk.status === "completed").length
-    return `LIVE | ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
+    return `\uF0E7 ${t.tasks.length} tasks | ${inProgress} active | ${completed} done`
   }
   const t = entry.team
   return `${teamTypeLabel(t.meta.type)} | ${t.tasks.length} tasks`
@@ -50,7 +50,7 @@ export function TeamList(props: { focused: boolean; onSelect: (index: number) =>
     >
       <box height={1} backgroundColor={colors.bgDark} padding={{ left: 1 }}>
         <text bold fg={colors.cyan}>
-          {hasLive() ? "Teams LIVE" : "Teams"}
+          {hasLive() ? "\uF0E7 Teams" : "Teams"}
         </text>
       </box>
       <select
