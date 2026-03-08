@@ -25,7 +25,7 @@ export function StatusBar(props: { lastKey?: string; panelFocus?: string }) {
       padding={{ left: 1, right: 1 }}
     >
       <text fg={colors.fgMuted}>
-        {shortPath()} | {state.teams.length + state.liveTeams.length} teams{state.liveTeams.length > 0 ? ` (${state.liveTeams.length} live)` : ""} | {timeStr()} | focus:{props.panelFocus || "?"} | {props.lastKey || "j/k:nav enter:select q:quit"}{(() => { const entry = getUnifiedTeams()[state.selectedTeamIndex]; return entry?.kind === "docs" ? " \uF187 a:archive" : ""; })()}
+        {shortPath()} | {state.teams.length + state.liveTeams.length} teams{state.liveTeams.length > 0 ? ` (${state.liveTeams.length} live)` : ""}{state.projects.length > 0 ? ` | ${state.projects.length} projects` : ""} | {timeStr()} | focus:{props.panelFocus || "?"} | {props.lastKey || "j/k:nav enter:select q:quit"}{(() => { const isProjectView = state.viewMode === "projects" || state.viewMode === "project-stages"; return isProjectView ? " p:teams" : " p:projects"; })()}{(() => { const entry = getUnifiedTeams()[state.selectedTeamIndex]; return entry?.kind === "docs" && (state.viewMode === "teams" || state.viewMode === "tasks") ? " \uF187 a:archive" : ""; })()}
       </text>
     </box>
   )

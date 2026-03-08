@@ -66,6 +66,7 @@ const COLUMN_COLORS = [colors.fgMuted, colors.yellow, colors.green] as const
 
 export function TaskList(props: { focused: boolean; onSelect: (index: number) => void; onChange?: (index: number) => void }) {
   const entry = createMemo((): UnifiedTeamEntry | undefined => {
+    if (state.stageTeam) return { kind: "docs", team: state.stageTeam }
     const unified = getUnifiedTeams()
     return unified[state.selectedTeamIndex]
   })

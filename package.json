@@ -1,6 +1,6 @@
 {
   "name": "claude-team-tasks-tui",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "type": "module",
   "bin": {
     "claude-team-tasks-tui": "./dist/cli.js"

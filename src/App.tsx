@@ -4,6 +4,8 @@ import { Header } from "./components/Header"
 import { TeamList } from "./components/TeamList"
 import { TaskList } from "./components/TaskList"
 import { TaskDetail } from "./components/TaskDetail"
+import { ProjectList } from "./components/ProjectList"
+import { StageList } from "./components/StageList"
 import { StatusBar } from "./components/StatusBar"
 import { colors } from "./theme"
 import {
@@ -13,10 +15,14 @@ import {
   setViewMode,
   getUnifiedTeams,
   removeTeam,
+  selectProject,
+  selectStage,
+  setStageTeam,
 } from "./data/store"
 import { archiveDocsTeam } from "./data/archive"
+import { parseTeam } from "./data/parser"
 
-export function App(props: { watchPath: string }) {
+export function App(props: { watchPath: string; projectsPath: string }) {
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
   const isWide = createMemo(() => dimensions().width >= 80)
@@ -55,6 +61,44 @@ export function App(props: { watchPath: string }) {
     setViewMode("detail")
   }
 
+  // Project navigation handlers
+  function handleProjectChange(index: number) {
+    setLastKey(`onChange:project[${index}]`)
+    selectProject(index)
+  }
+
+  function handleProjectSelect(index: number) {
+    setLastKey(`select:project[${index}]`)
+    selectProject(index)
+    if (isWide()) {
+      setPanelFocus("right")
+    } else {
+      setViewMode("project-stages")
+    }
+  }
+
+  function handleStageChange(index: number) {
+    setLastKey(`onChange:stage[${index}]`)
+    selectStage(index)
+  }
+
+  async function handleStageSelect(index: number) {
+    setLastKey(`select:stage[${index}]`)
+    selectStage(index)
+    const project = state.projects[state.selectedProjectIndex]
+    if (!project) return
+    const stage = project.stages[index]
+    if (!stage?.dir) return
+    try {
+      const team = await parseTeam(stage.dir)
+      setStageTeam(team)
+      setViewMode("tasks")
+      if (isWide()) setPanelFocus("right")
+    } catch {
+      // Stage directory may not have team artifacts
+    }
+  }
+
   useKeyboard((key) => {
     setLastKey(`key:${key.name}`)
 
@@ -84,13 +128,33 @@ export function App(props: { watchPath: string }) {
       }
     }
 
+    if (key.name === "p") {
+      if (state.viewMode === "teams" || state.viewMode === "tasks") {
+        setStageTeam(null)
+        setViewMode("projects")
+        setPanelFocus("left")
+      } else if (state.viewMode === "projects" || state.viewMode === "project-stages") {
+        setViewMode("teams")
+        setPanelFocus("left")
+      }
+    }
+
     if (key.name === "escape") {
       if (state.viewMode === "detail") {
         setViewMode("tasks")
         if (isWide()) setPanelFocus("right")
+      } else if (state.viewMode === "tasks" && state.stageTeam) {
+        setStageTeam(null)
+        setViewMode("project-stages")
+        if (isWide()) setPanelFocus("right")
       } else if (state.viewMode === "tasks" && !isWide()) {
         setViewMode("teams")
+      } else if (state.viewMode === "project-stages" && !isWide()) {
+        setViewMode("projects")
       } else if (isWide() && panelFocus() === "right") {
+        if (state.viewMode === "project-stages") {
+          setViewMode("projects")
+        }
         setPanelFocus("left")
       }
     }
@@ -114,6 +178,32 @@ export function App(props: { watchPath: string }) {
       <Switch>
         <Match when={state.viewMode === "detail"}>
           <TaskDetail />
+        </Match>
+        <Match when={state.viewMode === "projects" && isWide()}>
+          <box flexDirection="row" flexGrow={1}>
+            <box width="30%">
+              <ProjectList focused={panelFocus() === "left"} onSelect={handleProjectSelect} onChange={handleProjectChange} />
+            </box>
+            <box flexGrow={1}>
+              <StageList focused={panelFocus() === "right"} onSelect={handleStageSelect} onChange={handleStageChange} />
+            </box>
+          </box>
+        </Match>
+        <Match when={state.viewMode === "projects"}>
+          <ProjectList focused={true} onSelect={handleProjectSelect} onChange={handleProjectChange} />
+        </Match>
+        <Match when={state.viewMode === "project-stages"}>
+          <StageList focused={true} onSelect={handleStageSelect} onChange={handleStageChange} />
+        </Match>
+        <Match when={state.viewMode === "tasks" && state.stageTeam && isWide()}>
+          <box flexDirection="row" flexGrow={1}>
+            <box width="30%">
+              <StageList focused={panelFocus() === "left"} onSelect={handleStageSelect} onChange={handleStageChange} />
+            </box>
+            <box flexGrow={1}>
+              <TaskList focused={panelFocus() === "right"} onSelect={handleTaskSelect} onChange={handleTaskChange} />
+            </box>
+          </box>
         </Match>
         <Match when={isWide()}>
           <box flexDirection="row" flexGrow={1}>

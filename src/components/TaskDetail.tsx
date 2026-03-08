@@ -31,6 +31,7 @@ function depStr(label: string, ids: string[], allTasks: LiveTask[]): string {
 
 export function TaskDetail() {
   const entry = createMemo((): UnifiedTeamEntry | undefined => {
+    if (state.stageTeam) return { kind: "docs", team: state.stageTeam }
     const unified = getUnifiedTeams()
     return unified[state.selectedTeamIndex]
   })

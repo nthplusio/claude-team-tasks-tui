@@ -2052,8 +2052,12 @@ function produce(fn) {
 var [state, setState] = createStore({
   teams: [],
   liveTeams: [],
+  projects: [],
   selectedTeamIndex: 0,
   selectedTaskIndex: 0,
+  selectedProjectIndex: 0,
+  selectedStageIndex: 0,
+  stageTeam: null,
   viewMode: "teams",
   watchPath: "./docs/teams",
   lastUpdate: null
@@ -2145,6 +2149,51 @@ function removeTeam(dirName) {
       }
     }
   }));
+}
+function setProjects(projects) {
+  setState("projects", projects);
+  setState("lastUpdate", new Date);
+}
+function updateProject(dirName, project) {
+  setState(produce((s) => {
+    const idx = s.projects.findIndex((p) => p.dir === dirName);
+    if (idx >= 0) {
+      s.projects[idx] = project;
+    } else {
+      s.projects.push(project);
+    }
+    s.lastUpdate = new Date;
+  }));
+}
+function removeProject(dirName) {
+  setState(produce((s) => {
+    const idx = s.projects.findIndex((p) => p.dir === dirName);
+    if (idx >= 0) {
+      s.projects.splice(idx, 1);
+      s.lastUpdate = new Date;
+      if (s.selectedProjectIndex >= s.projects.length) {
+        s.selectedProjectIndex = Math.max(0, s.projects.length - 1);
+      }
+    }
+  }));
+}
+function selectProject(index) {
+  setState(produce((s) => {
+    s.selectedProjectIndex = Math.max(0, Math.min(index, s.projects.length - 1));
+    s.selectedStageIndex = 0;
+  }));
+}
+function selectStage(index) {
+  const project = state.projects[state.selectedProjectIndex];
+  if (!project)
+    return;
+  setState("selectedStageIndex", Math.max(0, Math.min(index, project.stages.length - 1)));
+}
+function setStageTeam(team) {
+  setState("stageTeam", team);
+  if (team) {
+    setState("selectedTaskIndex", 0);
+  }
 }
 
 // src/components/TeamList.tsx
@@ -2280,6 +2329,11 @@ var COLUMN_LABELS = ["PENDING", "ACTIVE", "DONE"];
 var COLUMN_COLORS = [colors.fgMuted, colors.yellow, colors.green];
 function TaskList(props) {
   const entry = createMemo(() => {
+    if (state.stageTeam)
+      return {
+        kind: "docs",
+        team: state.stageTeam
+      };
     const unified = getUnifiedTeams();
     return unified[state.selectedTeamIndex];
   });
@@ -2695,6 +2749,11 @@ function depStr(label, ids, allTasks) {
 }
 function TaskDetail() {
   const entry = createMemo(() => {
+    if (state.stageTeam)
+      return {
+        kind: "docs",
+        team: state.stageTeam
+      };
     const unified = getUnifiedTeams();
     return unified[state.selectedTeamIndex];
   });
@@ -2910,6 +2969,223 @@ function TaskDetail() {
   })();
 }
 
+// src/components/ProjectList.tsx
+function statusIcon(status) {
+  switch (status) {
+    case "completed":
+      return "\uF058";
+    case "active":
+      return "\uEB99";
+    case "paused":
+      return "\uF04C";
+    default:
+      return "\uF114";
+  }
+}
+function progressBar(project) {
+  const total = project.stages.length;
+  if (total === 0)
+    return "";
+  const done = project.stages.filter((s) => s.status === "completed").length;
+  const filled = Math.round(done / total * 6);
+  const empty = 6 - filled;
+  return `[${"\u2588".repeat(filled)}${"\u2591".repeat(empty)}] ${done}/${total}`;
+}
+function projectOptionName(project) {
+  return `${statusIcon(project.status)} ${project.name}`;
+}
+function projectOptionDesc(project) {
+  const bar = progressBar(project);
+  const current = project.currentStage ? `\u2192 ${project.currentStage}` : "done";
+  return `${bar} ${current}`;
+}
+function ProjectList(props) {
+  const options = createMemo(() => state.projects.map((project) => ({
+    name: projectOptionName(project),
+    description: projectOptionDesc(project)
+  })));
+  return (() => {
+    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text");
+    insertNode(_el$, _el$2);
+    setProp(_el$, "flexDirection", "column");
+    setProp(_el$, "borderStyle", "single");
+    setProp(_el$, "flexGrow", 1);
+    setProp(_el$, "height", "100%");
+    insertNode(_el$2, _el$3);
+    setProp(_el$2, "height", 1);
+    setProp(_el$2, "padding", {
+      left: 1
+    });
+    insertNode(_el$3, createTextNode(`Projects`));
+    setProp(_el$3, "bold", true);
+    insert(_el$, (() => {
+      var _c$ = memo2(() => options().length > 0);
+      return () => _c$() ? (() => {
+        var _el$5 = createElement("select");
+        setProp(_el$5, "width", "100%");
+        setProp(_el$5, "flexGrow", 1);
+        setProp(_el$5, "onSelect", (index) => props.onSelect(index));
+        setProp(_el$5, "onChange", (index) => props.onChange?.(index));
+        effect((_p$) => {
+          var _v$4 = options(), _v$5 = props.focused, _v$6 = colors.bg, _v$7 = colors.selection, _v$8 = colors.fg, _v$9 = colors.fgDark, _v$0 = colors.fgMuted;
+          _v$4 !== _p$.e && (_p$.e = setProp(_el$5, "options", _v$4, _p$.e));
+          _v$5 !== _p$.t && (_p$.t = setProp(_el$5, "focused", _v$5, _p$.t));
+          _v$6 !== _p$.a && (_p$.a = setProp(_el$5, "backgroundColor", _v$6, _p$.a));
+          _v$7 !== _p$.o && (_p$.o = setProp(_el$5, "selectedBackgroundColor", _v$7, _p$.o));
+          _v$8 !== _p$.i && (_p$.i = setProp(_el$5, "selectedTextColor", _v$8, _p$.i));
+          _v$9 !== _p$.n && (_p$.n = setProp(_el$5, "textColor", _v$9, _p$.n));
+          _v$0 !== _p$.s && (_p$.s = setProp(_el$5, "descriptionColor", _v$0, _p$.s));
+          return _p$;
+        }, {
+          e: undefined,
+          t: undefined,
+          a: undefined,
+          o: undefined,
+          i: undefined,
+          n: undefined,
+          s: undefined
+        });
+        return _el$5;
+      })() : (() => {
+        var _el$6 = createElement("box"), _el$7 = createElement("text");
+        insertNode(_el$6, _el$7);
+        setProp(_el$6, "padding", 1);
+        insertNode(_el$7, createTextNode(`No projects found`));
+        effect((_$p) => setProp(_el$7, "fg", colors.fgDark, _$p));
+        return _el$6;
+      })();
+    })(), null);
+    effect((_p$) => {
+      var _v$ = props.focused ? colors.blue : colors.border, _v$2 = colors.bgDark, _v$3 = colors.purple;
+      _v$ !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$, _p$.e));
+      _v$2 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$2, _p$.t));
+      _v$3 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$3, _p$.a));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined
+    });
+    return _el$;
+  })();
+}
+
+// src/components/StageList.tsx
+function stageIcon(status) {
+  switch (status) {
+    case "completed":
+      return "\uF058";
+    case "in_progress":
+      return "\uEB99";
+    case "skipped":
+      return "\uF00D";
+    case "pending":
+    default:
+      return "\uF252";
+  }
+}
+function stageOptionName(stage) {
+  return `${stageIcon(stage.status)} ${stage.name}`;
+}
+function stageOptionDesc(stage) {
+  const parts = [stage.status];
+  if (stage.teamName)
+    parts.push(stage.teamName);
+  return parts.join(" | ");
+}
+function StageList(props) {
+  const project = createMemo(() => state.projects[state.selectedProjectIndex]);
+  const options = createMemo(() => {
+    const p = project();
+    if (!p)
+      return [];
+    return p.stages.map((stage) => ({
+      name: stageOptionName(stage),
+      description: stageOptionDesc(stage)
+    }));
+  });
+  const headerText = createMemo(() => {
+    const p = project();
+    if (!p)
+      return "No project selected";
+    const desc = p.description ? ` \u2014 ${p.description}` : "";
+    return `${p.stages.length} stages${desc}`;
+  });
+  return (() => {
+    var _el$ = createElement("box"), _el$2 = createElement("box"), _el$3 = createElement("text"), _el$4 = createElement("box"), _el$5 = createElement("text");
+    insertNode(_el$, _el$2);
+    insertNode(_el$, _el$4);
+    setProp(_el$, "flexDirection", "column");
+    setProp(_el$, "borderStyle", "single");
+    setProp(_el$, "flexGrow", 2);
+    setProp(_el$, "height", "100%");
+    insertNode(_el$2, _el$3);
+    setProp(_el$2, "height", 1);
+    setProp(_el$2, "padding", {
+      left: 1
+    });
+    setProp(_el$3, "bold", true);
+    insert(_el$3, () => project()?.name || "Stages");
+    insertNode(_el$4, _el$5);
+    setProp(_el$4, "height", 1);
+    setProp(_el$4, "padding", {
+      left: 1
+    });
+    insert(_el$5, headerText);
+    insert(_el$, (() => {
+      var _c$ = memo2(() => options().length > 0);
+      return () => _c$() ? (() => {
+        var _el$6 = createElement("select");
+        setProp(_el$6, "width", "100%");
+        setProp(_el$6, "flexGrow", 1);
+        setProp(_el$6, "onSelect", (index) => props.onSelect(index));
+        setProp(_el$6, "onChange", (index) => props.onChange?.(index));
+        effect((_p$) => {
+          var _v$5 = options(), _v$6 = props.focused, _v$7 = colors.bg, _v$8 = colors.selection, _v$9 = colors.fg, _v$0 = colors.fgDark, _v$1 = colors.fgMuted;
+          _v$5 !== _p$.e && (_p$.e = setProp(_el$6, "options", _v$5, _p$.e));
+          _v$6 !== _p$.t && (_p$.t = setProp(_el$6, "focused", _v$6, _p$.t));
+          _v$7 !== _p$.a && (_p$.a = setProp(_el$6, "backgroundColor", _v$7, _p$.a));
+          _v$8 !== _p$.o && (_p$.o = setProp(_el$6, "selectedBackgroundColor", _v$8, _p$.o));
+          _v$9 !== _p$.i && (_p$.i = setProp(_el$6, "selectedTextColor", _v$9, _p$.i));
+          _v$0 !== _p$.n && (_p$.n = setProp(_el$6, "textColor", _v$0, _p$.n));
+          _v$1 !== _p$.s && (_p$.s = setProp(_el$6, "descriptionColor", _v$1, _p$.s));
+          return _p$;
+        }, {
+          e: undefined,
+          t: undefined,
+          a: undefined,
+          o: undefined,
+          i: undefined,
+          n: undefined,
+          s: undefined
+        });
+        return _el$6;
+      })() : (() => {
+        var _el$7 = createElement("box"), _el$8 = createElement("text");
+        insertNode(_el$7, _el$8);
+        setProp(_el$7, "padding", 1);
+        insertNode(_el$8, createTextNode(`No stages`));
+        effect((_$p) => setProp(_el$8, "fg", colors.fgDark, _$p));
+        return _el$7;
+      })();
+    })(), null);
+    effect((_p$) => {
+      var _v$ = props.focused ? colors.blue : colors.border, _v$2 = colors.bgDark, _v$3 = colors.purple, _v$4 = colors.fgMuted;
+      _v$ !== _p$.e && (_p$.e = setProp(_el$, "borderColor", _v$, _p$.e));
+      _v$2 !== _p$.t && (_p$.t = setProp(_el$2, "backgroundColor", _v$2, _p$.t));
+      _v$3 !== _p$.a && (_p$.a = setProp(_el$3, "fg", _v$3, _p$.a));
+      _v$4 !== _p$.o && (_p$.o = setProp(_el$5, "fg", _v$4, _p$.o));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined,
+      o: undefined
+    });
+    return _el$;
+  })();
+}
+
 // src/components/StatusBar.tsx
 function StatusBar(props) {
   const timeStr = createMemo(() => {
@@ -2949,12 +3225,20 @@ function StatusBar(props) {
       var _c$ = memo2(() => state.liveTeams.length > 0);
       return () => _c$() ? ` (${state.liveTeams.length} live)` : "";
     })(), _el$5);
+    insert(_el$2, (() => {
+      var _c$2 = memo2(() => state.projects.length > 0);
+      return () => _c$2() ? ` | ${state.projects.length} projects` : "";
+    })(), _el$5);
     insert(_el$2, timeStr, _el$6);
     insert(_el$2, () => props.panelFocus || "?", _el$7);
     insert(_el$2, () => props.lastKey || "j/k:nav enter:select q:quit", null);
     insert(_el$2, () => {
+      const isProjectView = state.viewMode === "projects" || state.viewMode === "project-stages";
+      return isProjectView ? " p:teams" : " p:projects";
+    }, null);
+    insert(_el$2, () => {
       const entry = getUnifiedTeams()[state.selectedTeamIndex];
-      return entry?.kind === "docs" ? " \uF187 a:archive" : "";
+      return entry?.kind === "docs" && (state.viewMode === "teams" || state.viewMode === "tasks") ? " \uF187 a:archive" : "";
     }, null);
     effect((_p$) => {
       var _v$ = colors.bgDark, _v$2 = colors.fgMuted;
@@ -2979,186 +3263,6 @@ async function archiveDocsTeam(watchPath, dirName) {
   const dest = join(archivePath, dirName);
   await cp(src, dest, { recursive: true });
   await rm(src, { recursive: true, force: true });
-}
-
-// src/App.tsx
-function App(props) {
-  const renderer = useRenderer();
-  const dimensions = useTerminalDimensions();
-  const isWide = createMemo(() => dimensions().width >= 80);
-  const [panelFocus, setPanelFocus] = createSignal("left");
-  const [lastKey, setLastKey] = createSignal("");
-  const [archiveConfirm, setArchiveConfirm] = createSignal(null);
-  function handleTeamChange(index) {
-    setLastKey(`onChange:team[${index}]`);
-    selectTeam(index);
-  }
-  function handleTeamSelect(index) {
-    setLastKey(`select:team[${index}]`);
-    selectTeam(index);
-    if (isWide()) {
-      setPanelFocus("right");
-    } else {
-      setViewMode("tasks");
-    }
-  }
-  function handleTaskChange(index) {
-    setLastKey(`onChange:task[${index}]`);
-    selectTask(index);
-  }
-  function handleTaskSelect(index) {
-    setLastKey(`select:task[${index}]`);
-    selectTask(index);
-    setViewMode("detail");
-  }
-  useKeyboard((key) => {
-    setLastKey(`key:${key.name}`);
-    const confirming = archiveConfirm();
-    if (confirming) {
-      if (key.name === "y") {
-        const dir = confirming;
-        setArchiveConfirm(null);
-        archiveDocsTeam(state.watchPath, dir).then(() => removeTeam(dir));
-      } else if (key.name === "n" || key.name === "escape") {
-        setArchiveConfirm(null);
-      }
-      return;
-    }
-    if (key.name === "q" || key.ctrl && key.name === "c") {
-      renderer.destroy();
-      process.exit(0);
-    }
-    if (key.name === "a") {
-      const unified = getUnifiedTeams();
-      const entry = unified[state.selectedTeamIndex];
-      if (entry && entry.kind === "docs") {
-        setArchiveConfirm(entry.team.dir);
-      }
-    }
-    if (key.name === "escape") {
-      if (state.viewMode === "detail") {
-        setViewMode("tasks");
-        if (isWide())
-          setPanelFocus("right");
-      } else if (state.viewMode === "tasks" && !isWide()) {
-        setViewMode("teams");
-      } else if (isWide() && panelFocus() === "right") {
-        setPanelFocus("left");
-      }
-    }
-    if (key.name === "tab") {
-      if (isWide() && state.viewMode !== "detail") {
-        setPanelFocus((f) => f === "left" ? "right" : "left");
-      }
-    }
-  });
-  return (() => {
-    var _el$ = createElement("box");
-    setProp(_el$, "flexDirection", "column");
-    setProp(_el$, "width", "100%");
-    setProp(_el$, "height", "100%");
-    insert(_el$, createComponent2(Header, {}), null);
-    insert(_el$, createComponent2(Switch, {
-      get children() {
-        return [createComponent2(Match, {
-          get when() {
-            return state.viewMode === "detail";
-          },
-          get children() {
-            return createComponent2(TaskDetail, {});
-          }
-        }), createComponent2(Match, {
-          get when() {
-            return isWide();
-          },
-          get children() {
-            var _el$2 = createElement("box"), _el$3 = createElement("box"), _el$4 = createElement("box");
-            insertNode(_el$2, _el$3);
-            insertNode(_el$2, _el$4);
-            setProp(_el$2, "flexDirection", "row");
-            setProp(_el$2, "flexGrow", 1);
-            setProp(_el$3, "width", "30%");
-            insert(_el$3, createComponent2(TeamList, {
-              get focused() {
-                return panelFocus() === "left";
-              },
-              onSelect: handleTeamSelect,
-              onChange: handleTeamChange
-            }));
-            setProp(_el$4, "flexGrow", 1);
-            insert(_el$4, createComponent2(TaskList, {
-              get focused() {
-                return panelFocus() === "right";
-              },
-              onSelect: handleTaskSelect,
-              onChange: handleTaskChange
-            }));
-            return _el$2;
-          }
-        }), createComponent2(Match, {
-          get when() {
-            return state.viewMode === "tasks";
-          },
-          get children() {
-            return createComponent2(TaskList, {
-              focused: true,
-              onSelect: handleTaskSelect,
-              onChange: handleTaskChange
-            });
-          }
-        }), createComponent2(Match, {
-          get when() {
-            return state.viewMode === "teams";
-          },
-          get children() {
-            return createComponent2(TeamList, {
-              focused: true,
-              onSelect: handleTeamSelect,
-              onChange: handleTeamChange
-            });
-          }
-        })];
-      }
-    }), null);
-    insert(_el$, createComponent2(Show, {
-      get when() {
-        return archiveConfirm();
-      },
-      children: (dir) => (() => {
-        var _el$5 = createElement("box"), _el$6 = createElement("text"), _el$7 = createTextNode(`Archive `), _el$8 = createTextNode(`? (y/n)`);
-        insertNode(_el$5, _el$6);
-        setProp(_el$5, "width", "100%");
-        setProp(_el$5, "height", 1);
-        setProp(_el$5, "padding", {
-          left: 1,
-          right: 1
-        });
-        insertNode(_el$6, _el$7);
-        insertNode(_el$6, _el$8);
-        insert(_el$6, dir, _el$8);
-        effect((_p$) => {
-          var _v$ = colors.bgDark, _v$2 = colors.yellow;
-          _v$ !== _p$.e && (_p$.e = setProp(_el$5, "backgroundColor", _v$, _p$.e));
-          _v$2 !== _p$.t && (_p$.t = setProp(_el$6, "fg", _v$2, _p$.t));
-          return _p$;
-        }, {
-          e: undefined,
-          t: undefined
-        });
-        return _el$5;
-      })()
-    }), null);
-    insert(_el$, createComponent2(StatusBar, {
-      get lastKey() {
-        return lastKey();
-      },
-      get panelFocus() {
-        return panelFocus();
-      }
-    }), null);
-    effect((_$p) => setProp(_el$, "backgroundColor", colors.bg, _$p));
-    return _el$;
-  })();
 }
 
 // src/data/parser.ts
@@ -3272,6 +3376,318 @@ async function parseAllTeams(watchPath) {
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
   const teams = await Promise.all(dirs.map((d) => parseTeam(join2(watchPath, d))));
   return teams.sort((a, b) => b.lastModified - a.lastModified);
+}
+
+// src/App.tsx
+function App(props) {
+  const renderer = useRenderer();
+  const dimensions = useTerminalDimensions();
+  const isWide = createMemo(() => dimensions().width >= 80);
+  const [panelFocus, setPanelFocus] = createSignal("left");
+  const [lastKey, setLastKey] = createSignal("");
+  const [archiveConfirm, setArchiveConfirm] = createSignal(null);
+  function handleTeamChange(index) {
+    setLastKey(`onChange:team[${index}]`);
+    selectTeam(index);
+  }
+  function handleTeamSelect(index) {
+    setLastKey(`select:team[${index}]`);
+    selectTeam(index);
+    if (isWide()) {
+      setPanelFocus("right");
+    } else {
+      setViewMode("tasks");
+    }
+  }
+  function handleTaskChange(index) {
+    setLastKey(`onChange:task[${index}]`);
+    selectTask(index);
+  }
+  function handleTaskSelect(index) {
+    setLastKey(`select:task[${index}]`);
+    selectTask(index);
+    setViewMode("detail");
+  }
+  function handleProjectChange(index) {
+    setLastKey(`onChange:project[${index}]`);
+    selectProject(index);
+  }
+  function handleProjectSelect(index) {
+    setLastKey(`select:project[${index}]`);
+    selectProject(index);
+    if (isWide()) {
+      setPanelFocus("right");
+    } else {
+      setViewMode("project-stages");
+    }
+  }
+  function handleStageChange(index) {
+    setLastKey(`onChange:stage[${index}]`);
+    selectStage(index);
+  }
+  async function handleStageSelect(index) {
+    setLastKey(`select:stage[${index}]`);
+    selectStage(index);
+    const project = state.projects[state.selectedProjectIndex];
+    if (!project)
+      return;
+    const stage = project.stages[index];
+    if (!stage?.dir)
+      return;
+    try {
+      const team = await parseTeam(stage.dir);
+      setStageTeam(team);
+      setViewMode("tasks");
+      if (isWide())
+        setPanelFocus("right");
+    } catch {}
+  }
+  useKeyboard((key) => {
+    setLastKey(`key:${key.name}`);
+    const confirming = archiveConfirm();
+    if (confirming) {
+      if (key.name === "y") {
+        const dir = confirming;
+        setArchiveConfirm(null);
+        archiveDocsTeam(state.watchPath, dir).then(() => removeTeam(dir));
+      } else if (key.name === "n" || key.name === "escape") {
+        setArchiveConfirm(null);
+      }
+      return;
+    }
+    if (key.name === "q" || key.ctrl && key.name === "c") {
+      renderer.destroy();
+      process.exit(0);
+    }
+    if (key.name === "a") {
+      const unified = getUnifiedTeams();
+      const entry = unified[state.selectedTeamIndex];
+      if (entry && entry.kind === "docs") {
+        setArchiveConfirm(entry.team.dir);
+      }
+    }
+    if (key.name === "p") {
+      if (state.viewMode === "teams" || state.viewMode === "tasks") {
+        setStageTeam(null);
+        setViewMode("projects");
+        setPanelFocus("left");
+      } else if (state.viewMode === "projects" || state.viewMode === "project-stages") {
+        setViewMode("teams");
+        setPanelFocus("left");
+      }
+    }
+    if (key.name === "escape") {
+      if (state.viewMode === "detail") {
+        setViewMode("tasks");
+        if (isWide())
+          setPanelFocus("right");
+      } else if (state.viewMode === "tasks" && state.stageTeam) {
+        setStageTeam(null);
+        setViewMode("project-stages");
+        if (isWide())
+          setPanelFocus("right");
+      } else if (state.viewMode === "tasks" && !isWide()) {
+        setViewMode("teams");
+      } else if (state.viewMode === "project-stages" && !isWide()) {
+        setViewMode("projects");
+      } else if (isWide() && panelFocus() === "right") {
+        if (state.viewMode === "project-stages") {
+          setViewMode("projects");
+        }
+        setPanelFocus("left");
+      }
+    }
+    if (key.name === "tab") {
+      if (isWide() && state.viewMode !== "detail") {
+        setPanelFocus((f) => f === "left" ? "right" : "left");
+      }
+    }
+  });
+  return (() => {
+    var _el$ = createElement("box");
+    setProp(_el$, "flexDirection", "column");
+    setProp(_el$, "width", "100%");
+    setProp(_el$, "height", "100%");
+    insert(_el$, createComponent2(Header, {}), null);
+    insert(_el$, createComponent2(Switch, {
+      get children() {
+        return [createComponent2(Match, {
+          get when() {
+            return state.viewMode === "detail";
+          },
+          get children() {
+            return createComponent2(TaskDetail, {});
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return memo2(() => state.viewMode === "projects")() && isWide();
+          },
+          get children() {
+            var _el$2 = createElement("box"), _el$3 = createElement("box"), _el$4 = createElement("box");
+            insertNode(_el$2, _el$3);
+            insertNode(_el$2, _el$4);
+            setProp(_el$2, "flexDirection", "row");
+            setProp(_el$2, "flexGrow", 1);
+            setProp(_el$3, "width", "30%");
+            insert(_el$3, createComponent2(ProjectList, {
+              get focused() {
+                return panelFocus() === "left";
+              },
+              onSelect: handleProjectSelect,
+              onChange: handleProjectChange
+            }));
+            setProp(_el$4, "flexGrow", 1);
+            insert(_el$4, createComponent2(StageList, {
+              get focused() {
+                return panelFocus() === "right";
+              },
+              onSelect: handleStageSelect,
+              onChange: handleStageChange
+            }));
+            return _el$2;
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return state.viewMode === "projects";
+          },
+          get children() {
+            return createComponent2(ProjectList, {
+              focused: true,
+              onSelect: handleProjectSelect,
+              onChange: handleProjectChange
+            });
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return state.viewMode === "project-stages";
+          },
+          get children() {
+            return createComponent2(StageList, {
+              focused: true,
+              onSelect: handleStageSelect,
+              onChange: handleStageChange
+            });
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return memo2(() => !!(state.viewMode === "tasks" && state.stageTeam))() && isWide();
+          },
+          get children() {
+            var _el$5 = createElement("box"), _el$6 = createElement("box"), _el$7 = createElement("box");
+            insertNode(_el$5, _el$6);
+            insertNode(_el$5, _el$7);
+            setProp(_el$5, "flexDirection", "row");
+            setProp(_el$5, "flexGrow", 1);
+            setProp(_el$6, "width", "30%");
+            insert(_el$6, createComponent2(StageList, {
+              get focused() {
+                return panelFocus() === "left";
+              },
+              onSelect: handleStageSelect,
+              onChange: handleStageChange
+            }));
+            setProp(_el$7, "flexGrow", 1);
+            insert(_el$7, createComponent2(TaskList, {
+              get focused() {
+                return panelFocus() === "right";
+              },
+              onSelect: handleTaskSelect,
+              onChange: handleTaskChange
+            }));
+            return _el$5;
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return isWide();
+          },
+          get children() {
+            var _el$8 = createElement("box"), _el$9 = createElement("box"), _el$0 = createElement("box");
+            insertNode(_el$8, _el$9);
+            insertNode(_el$8, _el$0);
+            setProp(_el$8, "flexDirection", "row");
+            setProp(_el$8, "flexGrow", 1);
+            setProp(_el$9, "width", "30%");
+            insert(_el$9, createComponent2(TeamList, {
+              get focused() {
+                return panelFocus() === "left";
+              },
+              onSelect: handleTeamSelect,
+              onChange: handleTeamChange
+            }));
+            setProp(_el$0, "flexGrow", 1);
+            insert(_el$0, createComponent2(TaskList, {
+              get focused() {
+                return panelFocus() === "right";
+              },
+              onSelect: handleTaskSelect,
+              onChange: handleTaskChange
+            }));
+            return _el$8;
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return state.viewMode === "tasks";
+          },
+          get children() {
+            return createComponent2(TaskList, {
+              focused: true,
+              onSelect: handleTaskSelect,
+              onChange: handleTaskChange
+            });
+          }
+        }), createComponent2(Match, {
+          get when() {
+            return state.viewMode === "teams";
+          },
+          get children() {
+            return createComponent2(TeamList, {
+              focused: true,
+              onSelect: handleTeamSelect,
+              onChange: handleTeamChange
+            });
+          }
+        })];
+      }
+    }), null);
+    insert(_el$, createComponent2(Show, {
+      get when() {
+        return archiveConfirm();
+      },
+      children: (dir) => (() => {
+        var _el$1 = createElement("box"), _el$10 = createElement("text"), _el$11 = createTextNode(`Archive `), _el$12 = createTextNode(`? (y/n)`);
+        insertNode(_el$1, _el$10);
+        setProp(_el$1, "width", "100%");
+        setProp(_el$1, "height", 1);
+        setProp(_el$1, "padding", {
+          left: 1,
+          right: 1
+        });
+        insertNode(_el$10, _el$11);
+        insertNode(_el$10, _el$12);
+        insert(_el$10, dir, _el$12);
+        effect((_p$) => {
+          var _v$ = colors.bgDark, _v$2 = colors.yellow;
+          _v$ !== _p$.e && (_p$.e = setProp(_el$1, "backgroundColor", _v$, _p$.e));
+          _v$2 !== _p$.t && (_p$.t = setProp(_el$10, "fg", _v$2, _p$.t));
+          return _p$;
+        }, {
+          e: undefined,
+          t: undefined
+        });
+        return _el$1;
+      })()
+    }), null);
+    insert(_el$, createComponent2(StatusBar, {
+      get lastKey() {
+        return lastKey();
+      },
+      get panelFocus() {
+        return panelFocus();
+      }
+    }), null);
+    effect((_$p) => setProp(_el$, "backgroundColor", colors.bg, _$p));
+    return _el$;
+  })();
 }
 
 // src/data/json-parser.ts
@@ -3570,10 +3986,134 @@ async function startJsonWatcher(tasksPath) {
   return watcher;
 }
 
+// src/data/project-watcher.ts
+import { watch as watch3 } from "chokidar";
+import { join as join8, relative as relative3, sep as sep3 } from "path";
+
+// src/data/project-parser.ts
+import { readdir as readdir4, readFile as readFile4, stat as stat3 } from "fs/promises";
+import { join as join7, basename as basename3 } from "path";
+async function getDirMtime3(dirPath) {
+  try {
+    const s = await stat3(dirPath);
+    return s.mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+async function parseProject(dirPath) {
+  const dirName = basename3(dirPath);
+  try {
+    const configPath = join7(dirPath, "project.json");
+    const raw = await readFile4(configPath, "utf-8");
+    const config = JSON.parse(raw);
+    const name = config.name || dirName;
+    const stageOrder = config.stageOrder || Object.keys(config.stages || {});
+    const stagesConfig = config.stages || {};
+    let existingDirs;
+    try {
+      const entries = await readdir4(dirPath, { withFileTypes: true });
+      existingDirs = new Set(entries.filter((e) => e.isDirectory()).map((e) => e.name));
+    } catch {
+      existingDirs = new Set;
+    }
+    const stages = stageOrder.map((stageName) => {
+      const stageConf = stagesConfig[stageName];
+      return {
+        name: stageName,
+        status: stageConf?.status || (existingDirs.has(stageName) ? "completed" : "pending"),
+        teamName: stageConf?.teamName,
+        dir: existingDirs.has(stageName) ? join7(dirPath, stageName) : undefined
+      };
+    });
+    const currentStage = stages.find((s) => s.status === "in_progress")?.name || stages.find((s) => s.status === "pending")?.name;
+    const lastModified = await getDirMtime3(join7(dirPath, "project.json"));
+    return {
+      name,
+      description: config.description,
+      status: config.status || "active",
+      stages,
+      stageOrder,
+      currentStage,
+      dir: dirName,
+      lastModified
+    };
+  } catch {
+    return null;
+  }
+}
+async function parseAllProjects(projectsPath) {
+  try {
+    const entries = await readdir4(projectsPath, { withFileTypes: true });
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    const results = await Promise.all(dirs.map((d) => parseProject(join7(projectsPath, d))));
+    return results.filter((p) => p !== null).sort((a, b) => b.lastModified - a.lastModified);
+  } catch {
+    return [];
+  }
+}
+
+// src/data/project-watcher.ts
+var debounceTimer3 = null;
+var pendingDirs3 = new Set;
+function getProjectDir(watchPath, changedPath) {
+  const rel = relative3(watchPath, changedPath);
+  const parts = rel.split(sep3);
+  if (parts.length >= 1 && parts[0] !== "." && parts[0] !== "..") {
+    return parts[0];
+  }
+  return null;
+}
+function startProjectWatcher(projectsPath) {
+  const watcher = watch3(projectsPath, {
+    ignoreInitial: true,
+    depth: 3,
+    awaitWriteFinish: {
+      stabilityThreshold: 100,
+      pollInterval: 50
+    }
+  });
+  const scheduleUpdate = (filePath) => {
+    const projectDir = getProjectDir(projectsPath, filePath);
+    if (!projectDir)
+      return;
+    pendingDirs3.add(projectDir);
+    if (debounceTimer3)
+      clearTimeout(debounceTimer3);
+    debounceTimer3 = setTimeout(async () => {
+      const dirs = [...pendingDirs3];
+      pendingDirs3.clear();
+      for (const dir of dirs) {
+        try {
+          const project = await parseProject(join8(projectsPath, dir));
+          if (project) {
+            updateProject(dir, project);
+          }
+        } catch {}
+      }
+    }, 200);
+  };
+  const handleUnlink = (filePath) => {
+    if (filePath.endsWith("project.json")) {
+      const projectDir = getProjectDir(projectsPath, filePath);
+      if (projectDir) {
+        removeProject(projectDir);
+        return;
+      }
+    }
+    scheduleUpdate(filePath);
+  };
+  watcher.on("add", scheduleUpdate);
+  watcher.on("change", scheduleUpdate);
+  watcher.on("unlink", handleUnlink);
+  return watcher;
+}
+
 // index.tsx
 var watchPath = resolve2(process.argv[2] || "docs/teams");
+var projectsPath = resolve2(watchPath, "..", "projects");
 var tasksPath = getTasksDir();
-var [teams, configs, liveTeams] = await Promise.all([parseAllTeams(watchPath), scanTeamConfigs(), parseAllLiveTeams(tasksPath)]);
+var [teams, configs, liveTeams, projects] = await Promise.all([parseAllTeams(watchPath), scanTeamConfigs(), parseAllLiveTeams(tasksPath), parseAllProjects(projectsPath)]);
 for (const lt of liveTeams) {
   const config = configs.get(lt.dirName);
   if (config) {
@@ -3584,9 +4124,12 @@ for (const lt of liveTeams) {
 setWatchPath(watchPath);
 setTeams(teams);
 setLiveTeams(liveTeams);
+setProjects(projects);
 setConfigCache(configs);
 startFileWatcher(watchPath);
 startJsonWatcher(tasksPath);
+startProjectWatcher(projectsPath);
 render(() => createComponent2(App, {
-  watchPath
+  watchPath,
+  projectsPath
 }));

@@ -1,11 +1,15 @@
 import { createStore, produce } from "solid-js/store"
-import type { AppState, Team, LiveTeam, TeamConfig, LiveTask, UnifiedTeamEntry, ViewMode } from "../types"
+import type { AppState, Team, LiveTeam, TeamConfig, LiveTask, UnifiedTeamEntry, ViewMode, Project } from "../types"
 
 const [state, setState] = createStore<AppState>({
   teams: [],
   liveTeams: [],
+  projects: [],
   selectedTeamIndex: 0,
   selectedTaskIndex: 0,
+  selectedProjectIndex: 0,
+  selectedStageIndex: 0,
+  stageTeam: null,
   viewMode: "teams",
   watchPath: "./docs/teams",
   lastUpdate: null,
@@ -86,10 +90,23 @@ export function setViewMode(mode: ViewMode) {
 
 export function navigateBack() {
   if (state.viewMode === "detail") {
-    setState("viewMode", "tasks")
+    if (state.stageTeam) {
+      setState("viewMode", "tasks")
+    } else {
+      setState("viewMode", "tasks")
+    }
   } else if (state.viewMode === "tasks") {
-    setState("viewMode", "teams")
-    setState("selectedTaskIndex", 0)
+    if (state.stageTeam) {
+      setState("stageTeam", null)
+      setState("viewMode", "project-stages")
+      setState("selectedTaskIndex", 0)
+    } else {
+      setState("viewMode", "teams")
+      setState("selectedTaskIndex", 0)
+    }
+  } else if (state.viewMode === "project-stages") {
+    setState("viewMode", "projects")
+    setState("selectedStageIndex", 0)
   }
 }
 
@@ -150,4 +167,62 @@ export function removeTeam(dirName: string) {
       }
     })
   )
+}
+
+// Project store actions
+
+export function setProjects(projects: Project[]) {
+  setState("projects", projects)
+  setState("lastUpdate", new Date())
+}
+
+export function updateProject(dirName: string, project: Project) {
+  setState(
+    produce((s) => {
+      const idx = s.projects.findIndex((p) => p.dir === dirName)
+      if (idx >= 0) {
+        s.projects[idx] = project
+      } else {
+        s.projects.push(project)
+      }
+      s.lastUpdate = new Date()
+    })
+  )
+}
+
+export function removeProject(dirName: string) {
+  setState(
+    produce((s) => {
+      const idx = s.projects.findIndex((p) => p.dir === dirName)
+      if (idx >= 0) {
+        s.projects.splice(idx, 1)
+        s.lastUpdate = new Date()
+        if (s.selectedProjectIndex >= s.projects.length) {
+          s.selectedProjectIndex = Math.max(0, s.projects.length - 1)
+        }
+      }
+    })
+  )
+}
+
+export function selectProject(index: number) {
+  setState(
+    produce((s) => {
+      s.selectedProjectIndex = Math.max(0, Math.min(index, s.projects.length - 1))
+      s.selectedStageIndex = 0
+    })
+  )
+}
+
+export function selectStage(index: number) {
+  const project = state.projects[state.selectedProjectIndex]
+  if (!project) return
+  setState("selectedStageIndex", Math.max(0, Math.min(index, project.stages.length - 1)))
+}
+
+export function setStageTeam(team: Team | null) {
+  setState("stageTeam", team)
+  if (team) {
+    setState("selectedTaskIndex", 0)
+  }
 }

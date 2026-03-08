@@ -66,13 +66,39 @@ export type UnifiedTeamEntry =
   | { kind: "live"; team: LiveTeam }
   | { kind: "docs"; team: Team }
 
-export type ViewMode = "teams" | "tasks" | "detail"
+// Project pipeline types
+
+export type StageStatus = "pending" | "in_progress" | "completed" | "skipped"
+
+export interface ProjectStage {
+  name: string
+  status: StageStatus
+  teamName?: string
+  dir?: string
+}
+
+export interface Project {
+  name: string
+  description?: string
+  status: string
+  stages: ProjectStage[]
+  stageOrder: string[]
+  currentStage?: string
+  dir: string
+  lastModified: number
+}
+
+export type ViewMode = "teams" | "tasks" | "detail" | "projects" | "project-stages"
 
 export interface AppState {
   teams: Team[]
   liveTeams: LiveTeam[]
+  projects: Project[]
   selectedTeamIndex: number
   selectedTaskIndex: number
+  selectedProjectIndex: number
+  selectedStageIndex: number
+  stageTeam: Team | null
   viewMode: ViewMode
   watchPath: string
   lastUpdate: Date | null
